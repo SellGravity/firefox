@@ -54,6 +54,29 @@ std::string SanitizeRenderer(const std::string&);
 std::string SanitizeVendor(const std::string&);
 }  // namespace webgl
 
+// SellGravity antidetect (InviFox): GPU vendor family of a GL renderer /
+// vendor string. A spoofed renderer of another vendor than the real GPU is
+// detectable (extensions, precision, WebGL image), so such an override is
+// ignored. Lesson A3 of the Chromium audit ("tampering" on vendor mismatch).
+static int SGGpuVendorFamily(const std::string& aStr) {
+  auto has = [&](const char* aNeedle) {
+    return aStr.find(aNeedle) != std::string::npos;
+  };
+  if (has("NVIDIA") || has("GeForce") || has("Quadro") || has("RTX")) {
+    return 1;
+  }
+  if (has("AMD") || has("Radeon") || has("ATI ")) {
+    return 2;
+  }
+  if (has("Intel")) {
+    return 3;
+  }
+  if (has("Apple")) {
+    return 4;
+  }
+  return 0;  // unknown: no opinion
+}
+
 // -
 
 webgl::NotLostData::NotLostData(ClientWebGLContext& _context)
@@ -2448,10 +2471,25 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
   // -
 
   if (!debug) {
+    // SellGravity antidetect: the launcher override only applies when it is
+    // the same GPU vendor family as the real adapter (see SGGpuVendorFamily).
+    const auto OverrideMatchesRealGpu = [&](const std::string& aOverride) {
+      const auto real = GetString(LOCAL_GL_RENDERER);
+      if (!real) {
+        return true;
+      }
+      const int realFamily = SGGpuVendorFamily(*real);
+      const int fakeFamily = SGGpuVendorFamily(aOverride);
+      return !realFamily || !fakeFamily || realFamily == fakeFamily;
+    };
+
     const auto GetUnmaskedRenderer = [&]() {
       const auto prefLock = StaticPrefs::webgl_override_unmasked_renderer();
       if (!prefLock->IsEmpty()) {
-        return Some(ToString(*prefLock));
+        std::string fake = ToString(*prefLock);
+        if (OverrideMatchesRealGpu(fake)) {
+          return Some(fake);
+        }
       }
       return GetString(LOCAL_GL_RENDERER);
     };
@@ -2459,7 +2497,14 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
     const auto GetUnmaskedVendor = [&]() {
       const auto prefLock = StaticPrefs::webgl_override_unmasked_vendor();
       if (!prefLock->IsEmpty()) {
-        return Some(ToString(*prefLock));
+        std::string fake = ToString(*prefLock);
+        const auto rendererLock =
+            StaticPrefs::webgl_override_unmasked_renderer();
+        const std::string fakeRenderer = ToString(*rendererLock);
+        if (OverrideMatchesRealGpu(fakeRenderer.empty() ? fake
+                                                        : fakeRenderer)) {
+          return Some(fake);
+        }
       }
       return GetString(LOCAL_GL_VENDOR);
     };
