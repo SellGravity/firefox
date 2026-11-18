@@ -79,6 +79,7 @@
 #include "mozilla/StaticPrefs_docshell.h"
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/StaticPrefs_extensions.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/StorageAccess.h"
 #include "mozilla/StoragePrincipalHelper.h"
 #include "mozilla/TelemetryHistogramEnums.h"
@@ -3753,12 +3754,19 @@ nsresult nsGlobalWindowInner::GetInnerHeight(CallerType aCallerType,
 
 int32_t nsGlobalWindowInner::GetOuterWidth(CallerType aCallerType,
                                            ErrorResult& aError) {
+  // SellGravity antidetect: mobile persona has no browser chrome.
+  if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
+    return int32_t(std::round(GetInnerWidth(aCallerType, aError)));
+  }
   FORWARD_TO_OUTER_OR_THROW(GetOuterWidthOuter, (aCallerType, aError), aError,
                             0);
 }
 
 int32_t nsGlobalWindowInner::GetOuterHeight(CallerType aCallerType,
                                             ErrorResult& aError) {
+  if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
+    return int32_t(std::round(GetInnerHeight(aCallerType, aError)));
+  }
   FORWARD_TO_OUTER_OR_THROW(GetOuterHeightOuter, (aCallerType, aError), aError,
                             0);
 }
@@ -3773,11 +3781,17 @@ double nsGlobalWindowInner::ScreenEdgeSlopY() const {
 
 int32_t nsGlobalWindowInner::GetScreenX(CallerType aCallerType,
                                         ErrorResult& aError) {
+  if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
+    return 0;
+  }
   FORWARD_TO_OUTER_OR_THROW(GetScreenXOuter, (aCallerType, aError), aError, 0);
 }
 
 int32_t nsGlobalWindowInner::GetScreenY(CallerType aCallerType,
                                         ErrorResult& aError) {
+  if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
+    return 0;
+  }
   FORWARD_TO_OUTER_OR_THROW(GetScreenYOuter, (aCallerType, aError), aError, 0);
 }
 

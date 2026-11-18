@@ -19865,6 +19865,21 @@
   value: false
   mirror: always
 
+- name: sg.fp.mobile
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: sg.fp.max_touch_points
+  type: RelaxedAtomicUint32
+  value: 5
+  mirror: always
+
+- name: sg.fp.dppx
+  type: AtomicFloat
+  value: 0.0f
+  mirror: always
+
 - name: sg.fp.hardware_concurrency
   type: RelaxedAtomicUint32
   value: 0
@@ -19881,6 +19896,16 @@
   mirror: always
 
 - name: sg.fp.screen.height
+  type: RelaxedAtomicInt32
+  value: 0
+  mirror: always
+
+- name: sg.fp.window.width
+  type: RelaxedAtomicInt32
+  value: 0
+  mirror: always
+
+- name: sg.fp.window.height
   type: RelaxedAtomicInt32
   value: 0
   mirror: always

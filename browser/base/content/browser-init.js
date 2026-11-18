@@ -462,6 +462,11 @@ var gBrowserInit = {
 
     this._cancelDelayedStartup();
 
+    // SellGravity antidetect (InviFox): launcher window geometry.
+    ChromeUtils.importESModule(
+      "resource:///modules/SGWindow.sys.mjs"
+    ).SGWindow.apply(window);
+
     gBrowser.addEventListener(
       "PermissionStateChange",
       function () {

@@ -890,6 +890,11 @@ bool Navigator::Vibrate(const nsTArray<uint32_t>& aPattern) {
 //*****************************************************************************
 
 uint32_t Navigator::MaxTouchPoints(CallerType aCallerType) {
+  // SellGravity antidetect: mobile persona reports its touch points.
+  if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
+    return StaticPrefs::sg_fp_max_touch_points();
+  }
+
   nsIDocShell* docshell = GetDocShell();
   BrowsingContext* bc = docshell ? docshell->GetBrowsingContext() : nullptr;
 

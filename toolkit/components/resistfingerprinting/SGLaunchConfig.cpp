@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <utility>
+
 #include "mozilla/CmdLineAndEnvUtils.h"
 #include "mozilla/HashFunctions.h"
 #include "mozilla/Logging.h"
@@ -68,6 +70,9 @@ const SwitchDef kSwitches[] = {
     {"window-scale", Kind::Value},
     {"device-mode", Kind::Value},
     {"device-size", Kind::Value},
+    {"force-device-scale-factor", Kind::Value},
+    {"dpr-override", Kind::Value},
+    {"max-touch-points", Kind::Value},
     // Network
     {"proxy-server", Kind::Value},
     {"proxy-auth-user", Kind::Value},
@@ -186,6 +191,12 @@ void LockUint(const char* aPref, uint32_t aValue) {
   Preferences::Lock(aPref);
 }
 
+void LockFloat(const char* aPref, float aValue) {
+  Preferences::Unlock(aPref);
+  Preferences::SetFloat(aPref, aValue, PrefValueKind::Default);
+  Preferences::Lock(aPref);
+}
+
 bool ParseUint(const nsACString& aStr, uint64_t& aOut) {
   if (aStr.IsEmpty()) {
     return false;
@@ -218,7 +229,7 @@ bool ParsePair(const nsACString& aStr, int32_t& aA, int32_t& aB) {
 // detected through engine features (lesson A6 from the Chromium audit).
 // We keep only the OS part of whatever UA the launcher sends.
 
-enum class UAOs { Windows, Mac, Linux, Unknown };
+enum class UAOs { Windows, Mac, Linux, Android, IOS, Unknown };
 
 struct UAParts {
   nsCString mUserAgent;   // navigator.userAgent / HTTP
@@ -228,6 +239,11 @@ struct UAParts {
 };
 
 UAOs DetectOs(const nsACString& aUA) {
+  // Mobile first: Android UAs also contain "Linux", iOS UAs "Mac OS X".
+  if (FindInReadable("Android"_ns, aUA)) return UAOs::Android;
+  if (FindInReadable("iPhone"_ns, aUA) || FindInReadable("iPad"_ns, aUA)) {
+    return UAOs::IOS;
+  }
   if (FindInReadable("Windows"_ns, aUA)) return UAOs::Windows;
   if (FindInReadable("Macintosh"_ns, aUA) ||
       FindInReadable("Mac OS X"_ns, aUA)) {
@@ -243,6 +259,32 @@ UAParts BuildFirefoxUA(const nsACString& aRequestedUA) {
   UAParts out;
   constexpr auto kVer = MOZILLA_UAVERSION ""_ns;  // e.g. "160.0"
   switch (DetectOs(aRequestedUA)) {
+    case UAOs::IOS:
+      // Gecko cannot pass as WebKit (JS engine, CSS, APIs differ), so an iOS
+      // persona would be detected. Use the closest honest persona: Firefox
+      // for Android, same engine as us.
+      SG_LOG("iOS user-agent requested; using Firefox for Android persona");
+      [[fallthrough]];
+    case UAOs::Android: {
+      nsAutoCString androidVer("15");
+      int32_t pos = aRequestedUA.Find("Android "_ns);
+      if (pos != kNotFound) {
+        uint32_t start = uint32_t(pos) + 8, end = start;
+        while (end < aRequestedUA.Length() && aRequestedUA[end] >= '0' &&
+               aRequestedUA[end] <= '9') {
+          ++end;
+        }
+        if (end > start) androidVer = Substring(aRequestedUA, start, end - start);
+      }
+      out.mPlatform.AssignLiteral("Linux armv81");
+      out.mOscpu.AssignLiteral("Linux armv81");
+      out.mAppVersion = "5.0 (Android "_ns + androidVer + ")"_ns;
+      // Firefox for Android: "Gecko/<ver>" instead of "Gecko/20100101".
+      out.mUserAgent = "Mozilla/5.0 (Android "_ns + androidVer +
+                       "; Mobile; rv:"_ns + kVer + ") Gecko/"_ns + kVer +
+                       " Firefox/"_ns + kVer;
+      return out;
+    }
     case UAOs::Mac:
       out.mOscpu.AssignLiteral("Intel Mac OS X 10.15");
       out.mPlatform.AssignLiteral("MacIntel");
@@ -439,6 +481,60 @@ void ApplyLocation(const nsACString& aMode) {
   LockCString("sg.fp.geo.mode", aMode);
 }
 
+// Typical CSS-px width -> device pixel ratio of popular Android phones.
+float DefaultMobileDppx(int32_t aCssWidth) {
+  if (aCssWidth <= 360) return 3.0f;    // Galaxy S class
+  if (aCssWidth <= 393) return 2.75f;   // Pixel 7/8/9
+  if (aCssWidth <= 412) return 2.625f;  // Pixel 4a-6, many mid-range
+  return 2.0f;                          // tablets
+}
+
+void ApplyMobile() {
+  const nsCString* mode = FindArg("device-mode");
+  bool mobile = mode && mode->EqualsLiteral("phone");
+  if (const nsCString* ua = FindArg("user-agent")) {
+    UAOs os = DetectOs(*ua);
+    mobile = mobile || os == UAOs::Android || os == UAOs::IOS;
+  }
+  if (!mobile) {
+    return;
+  }
+
+  LockBool("sg.fp.mobile", true);
+  // Like Firefox for Android: honour <meta name=viewport>, expose touch
+  // events, overlay scrollbars (scrollbar width 0).
+  LockBool("dom.meta-viewport.enabled", true);
+  LockInt("dom.w3c_touch_events.enabled", 1);
+  LockInt("ui.useOverlayScrollbars", 1);
+
+  int32_t w = 0, h = 0;
+  const nsCString* ds = FindArg("device-size");
+  if (ds && ParsePair(*ds, w, h) && w > 0 && h > 0) {
+    // Portrait: width < height.
+    if (w > h) std::swap(w, h);
+    LockInt("sg.fp.screen.width", w);
+    LockInt("sg.fp.screen.height", h);
+  } else {
+    w = Preferences::GetInt("sg.fp.screen.width", 412);
+  }
+
+  float dppx = 0.0f;
+  const nsCString* df = FindArg("force-device-scale-factor");
+  if (!df) df = FindArg("dpr-override");
+  if (df) {
+    nsresult rv;
+    dppx = float(nsCString(*df).ToDouble(&rv));
+    if (NS_FAILED(rv) || dppx < 1.0f || dppx > 5.0f) dppx = 0.0f;
+  }
+  LockFloat("sg.fp.dppx", dppx > 0.0f ? dppx : DefaultMobileDppx(w));
+
+  uint64_t tp = 5;
+  if (const nsCString* t = FindArg("max-touch-points")) {
+    if (!ParseUint(*t, tp) || tp == 0 || tp > 10) tp = 5;
+  }
+  LockUint("sg.fp.max_touch_points", uint32_t(tp));
+}
+
 void ApplyHardening() {
   // Things a launcher-driven profile must never do on its own.
   LockBool("browser.shell.checkDefaultBrowser", false);
@@ -588,12 +684,21 @@ void ApplyLaunchConfig(nsIFile* aProfileDir) {
       LockInt("sg.fp.screen.height", b);
     }
   }
+  if (const nsCString* ws = FindArg("window-size")) {
+    if (ParsePair(*ws, a, b) && a > 0 && b > 0) {
+      LockInt("sg.fp.window.width", a);
+      LockInt("sg.fp.window.height", b);
+    }
+  }
   if (const nsCString* wp = FindArg("window-position")) {
     if (ParsePair(*wp, a, b)) {
       LockInt("sg.fp.window.x", a);
       LockInt("sg.fp.window.y", b);
     }
   }
+
+  // --- mobile persona (--device-mode=phone) -------------------------------
+  ApplyMobile();
 
   // --- WebGL -----------------------------------------------------------------
   if (const nsCString* v = FindArg("webgl-vendor")) {

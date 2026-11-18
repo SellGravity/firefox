@@ -131,3 +131,33 @@ Luồng xử lý:
 - [ ] Truyền `--screen-size=W,H` lấy từ `fp.screen` để màn hình giả không bị lấy theo kích thước ô xếp cửa sổ.
 - [ ] Mode vị trí `ip`: launcher tự đổi IP proxy ra toạ độ rồi truyền `--location-mode=<perm>,lat,lng`.
 - [ ] Đặt kích thước/vị trí cửa sổ thật (P2: đọc `sg.fp.window.*` lúc mở cửa sổ đầu tiên, trong `browser/`).
+
+## 8. InviFox: branding và mobile
+
+**Branding:** thư mục `browser/branding/invifox`. File chạy là `invifox.exe`, tên hiển thị InviFox, vendor SellGravity. Icon tạm thời vẫn lấy của bản unofficial; cần thay bằng logo InviBrowser (`gravbrowser/electron/assets/icon.png`).
+
+### Persona mobile (`--device-mode=phone` hoặc UA Android)
+
+Dùng chính các field của BrowsingContext mà DevTools RDM và WebDriver BiDi đang dùng. Các field này được gán ngay khi tạo top-level context, trong `BrowsingContext::ComputeInitialFields`:
+
+- `TouchEventsOverride=Enabled`: có `TouchEvent` và `ontouchstart`; media query trả `pointer: coarse` và `hover: none`.
+- `maxTouchPoints`: mặc định 5 (`--max-touch-points`).
+- `OverrideDPPX`: dùng `--force-device-scale-factor`/`--dpr-override`; nếu không truyền thì suy theo chiều rộng (360→3, 393→2.75, 412→2.625).
+- Hướng màn hình `portrait-primary` / 0°. Bật `dom.meta-viewport.enabled` và overlay scrollbar (độ rộng thanh cuộn = 0).
+- `screen` = `--device-size` (luôn để dọc), `availHeight` = `height`; `outerWidth/Height` = `inner`; `screenX/Y` = 0.
+- Cửa sổ thật được co sao cho **vùng nội dung** đúng bằng kích thước thiết bị theo CSS px (`browser/modules/SGWindow.sys.mjs`).
+- UA là Firefox for Android, đúng version engine: `Mozilla/5.0 (Android N; Mobile; rv:160.0) Gecko/160.0 Firefox/160.0`; platform/oscpu `Linux armv81`.
+
+Việc còn lại để Android đạt mức tối đa:
+
+- [ ] `window.orientation` và `onorientationchange` hiện chỉ biên dịch trong bản Android (`#if MOZ_WIDGET_ANDROID` trong `Window.webidl`). Cần chuyển sang bật lúc chạy theo `sg.fp.mobile`.
+- [ ] Danh sách font Android (Roboto, Noto…) để thay font Windows trong mobile mode.
+- [ ] WebGL renderer của GPU mobile (Adreno/Mali) do launcher truyền, kèm params và extensions của GPU đó (P3).
+- [ ] Các API desktop-only và Android-only, ví dụ `navigator.share`, Battery, giọng `speechSynthesis`: so sánh với Firefox Android 160 thật rồi bật/tắt theo.
+- [ ] Bàn phím ảo / `visualViewport` khi focus vào input (mức nâng cao).
+
+### iOS: giới hạn cứng, không vượt qua được
+
+Trên iOS, mọi trình duyệt (kể cả Firefox iOS) đều phải chạy **WebKit + JavaScriptCore**. Gecko (cũng như Blink bên Chromium) có JS engine, CSS, định dạng lỗi/stack và tập API khác hẳn. Các trang như CreepJS hay fingerprint.com nhận ra ngay bằng feature detection, dù UA và các con số có đúng đến đâu.
+
+Vì vậy InviFox không giả làm iOS: UA iPhone/iPad sẽ được chuyển sang persona Firefox Android và ghi log. Muốn persona iOS thật thì phải có engine WebKit, ví dụ một bản WebKit/Playwright-WebKit build riêng, hoặc thiết bị iOS thật hay cloud phone.

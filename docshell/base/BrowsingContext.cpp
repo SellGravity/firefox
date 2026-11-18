@@ -68,6 +68,7 @@
 #include "mozilla/StaticPrefs_fission.h"
 #include "mozilla/StaticPrefs_media.h"
 #include "mozilla/StaticPrefs_page_load.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/URLQueryStringStripper.h"
 #include "mozilla/EventStateManager.h"
@@ -430,6 +431,24 @@ BrowsingContext::FieldValues BrowsingContext::ComputeInitialFields(
       !parentBC && StaticPrefs::media_block_autoplay_until_in_foreground();
 
   fields.Get<IDX_HistoryID>() = nsID::GenerateUUID();
+
+  // SellGravity antidetect: mobile persona (--device-mode=phone). Same fields
+  // DevTools RDM / WebDriver BiDi emulation use, applied to every top-level
+  // content context from birth (Chromium fork parity: in-process emulation
+  // client attached before first commit). Descendant frames read Top().
+  if (!aParentWindow && aType == Type::Content && StaticPrefs::sg_fp_mobile()) {
+    fields.Get<IDX_TouchEventsOverrideInternal>() = TouchEventsOverride::Enabled;
+    fields.Get<IDX_MaxTouchPointsOverride>() =
+        uint8_t(StaticPrefs::sg_fp_max_touch_points());
+    const float dppx = StaticPrefs::sg_fp_dppx();
+    if (dppx > 0.0f) {
+      fields.Get<IDX_OverrideDPPX>() = dppx;
+    }
+    fields.Get<IDX_HasOrientationOverride>() = true;
+    fields.Get<IDX_CurrentOrientationType>() =
+        OrientationType::Portrait_primary;
+    fields.Get<IDX_CurrentOrientationAngle>() = 0.0f;
+  }
 
   return fields;
 }
