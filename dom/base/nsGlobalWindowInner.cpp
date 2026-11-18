@@ -3756,6 +3756,9 @@ nsresult nsGlobalWindowInner::GetInnerHeight(CallerType aCallerType,
 // screen. Keep the reported outer size and position inside the fake screen
 // (outerWidth <= screen.width, screenX + outerWidth <= screen.width, ...),
 // otherwise a real monitor larger than the fake one leaks through.
+// SellGravity antidetect: Android persona geometry (CSS px), see SGWindow.
+static constexpr int32_t kSGAndroidSystemBars = 24 + 48;
+
 static Maybe<CSSIntRect> SGDesktopScreen() {
   if (StaticPrefs::sg_fp_mobile()) {
     return Nothing();
@@ -3793,8 +3796,10 @@ int32_t nsGlobalWindowInner::GetOuterWidth(CallerType aCallerType,
 int32_t nsGlobalWindowInner::GetOuterHeight(CallerType aCallerType,
                                             ErrorResult& aError) {
   if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
+    // The app window excludes the Android status bar (24) and navigation
+    // bar (48); the Firefox toolbar is inside it.
     if (int32_t h = StaticPrefs::sg_fp_screen_height(); h > 0) {
-      return h;
+      return std::max(1, h - kSGAndroidSystemBars);
     }
     return int32_t(std::round(GetInnerHeight(aCallerType, aError)));
   }

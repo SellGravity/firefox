@@ -546,6 +546,16 @@ void ApplyMobile() {
     lockFont("font.name-list.monospace.", "Droid Sans Mono, Roboto"_ns);
   }
   LockCString("font.name-list.emoji", "Twemoji Mozilla"_ns);
+  // CSS system fonts (font: caption/menu/...) and the system-ui generic come
+  // from LookAndFeel, i.e. "Segoe UI" on the Windows host - CreepJS reports
+  // that as a Windows platform hint. On Android they are Roboto.
+  for (const char* id : {"caption", "icon", "menu", "message-box",
+                         "small-caption", "status-bar", "-moz-pull-down-menu",
+                         "-moz-button", "-moz-list", "-moz-field"}) {
+    nsAutoCString pref("ui.font.");
+    pref.Append(id);
+    LockCString(pref.get(), "Roboto"_ns);
+  }
   // Windows SAPI voices are kept out in SapiService::Init (API stays).
 
   int32_t w = 0, h = 0;

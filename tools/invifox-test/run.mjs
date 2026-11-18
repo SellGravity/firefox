@@ -144,6 +144,13 @@ async function selfCheck(page) {
     r.fonts = fontList.filter(f =>
       Object.keys(base).some(g => widthFor(`"${f}", ${g}`) !== base[g]));
     probe.remove();
+    {
+      const sf = document.createElement("div");
+      sf.style.font = "caption";
+      (document.body || document.documentElement).appendChild(sf);
+      r.systemFont = getComputedStyle(sf).fontFamily;
+      sf.remove();
+    }
     if (typeof speechSynthesis === "undefined") {
       r.speechVoices = "no-api";
     } else {

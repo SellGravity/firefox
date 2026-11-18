@@ -28,7 +28,10 @@ export const SGWindow = {
       // The CONTENT area must be exactly the device size in CSS px, so that
       // innerWidth/innerHeight and the meta-viewport layout match the device.
       const w = intPref("sg.fp.screen.width");
-      const h = intPref("sg.fp.screen.height");
+      // Visible page height on a phone: screen minus status bar (24), the
+      // Firefox toolbar (56) and the navigation bar (48). A content area as
+      // tall as the screen reads as headless (CreepJS hasVvpScreenRes).
+      const h = intPref("sg.fp.screen.height") - (24 + 56 + 48);
       if (w > 0 && h > 0) {
         // Windows will not make a browser window narrower than ~500px, so the
         // window alone cannot give a 360px content area. Like Responsive

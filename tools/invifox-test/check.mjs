@@ -80,11 +80,13 @@ if (mobile) {
     rule("meta-viewport page: innerHeight <= device height", vp.innerHeight <= vp.sh, `${vp.innerHeight}/${vp.sh}`);
   }
   rule("outerWidth == device width", self.window.outerWidth === self.screen.width, `${self.window.outerWidth}/${self.screen.width}`);
+  rule("outerHeight < screen.height (Android system bars)", self.window.outerHeight < self.screen.height, `${self.window.outerHeight}/${self.screen.height}`);
   rule("screen portrait", self.screen.height > self.screen.width);
   rule("DPR >= 2", self.window.devicePixelRatio >= 2, String(self.window.devicePixelRatio));
   const winFonts = (self.fonts || []).filter(f => !["Roboto", "Noto Serif", "Droid Sans Mono", "Twemoji Mozilla"].includes(f));
   rule("no desktop fonts visible", winFonts.length === 0, winFonts.join(", "));
   rule("speechSynthesis API present, no Windows voices", self.speechVoices === 0, String(self.speechVoices));
+  rule("CSS system font is Roboto (not Segoe UI)", /Roboto/.test(self.systemFont || "") && !/Segoe/.test(self.systemFont || ""), self.systemFont);
   rule("Roboto visible", (self.fonts || []).includes("Roboto"));
   const r = self.webgl?.unmaskedRenderer || "";
   rule("WebGL renderer is a phone GPU", /Adreno|Mali|PowerVR|Xclipse/.test(r), r);
@@ -94,6 +96,7 @@ if (mobile) {
   rule("pointer fine", !self.media.pointerCoarse);
   rule("no window.orientation on desktop", !self.media.orientationApi);
   rule("speechSynthesis API present", typeof self.speechVoices === "number", String(self.speechVoices));
+  rule("CSS system font is Segoe UI (Windows)", /Segoe UI/.test(self.systemFont || ""), self.systemFont);
   rule("Roboto hidden on desktop", !(self.fonts || []).includes("Roboto"));
   const r = self.webgl?.unmaskedRenderer || "";
   rule("WebGL renderer Windows ANGLE D3D11", /ANGLE \(.*Direct3D11/.test(r), r);
