@@ -546,8 +546,7 @@ void ApplyMobile() {
     lockFont("font.name-list.monospace.", "Droid Sans Mono, Roboto"_ns);
   }
   LockCString("font.name-list.emoji", "Twemoji Mozilla"_ns);
-  // Windows SAPI voices would reveal the host OS.
-  LockBool("media.webspeech.synth.enabled", false);
+  // Windows SAPI voices are kept out in SapiService::Init (API stays).
 
   int32_t w = 0, h = 0;
   const nsCString* ds = FindArg("device-size");
@@ -621,6 +620,11 @@ void ApplyHardening() {
   // "recommended" automation prefs, some of them web-visible (popup
   // blocker off, ...).
   LockBool("remote.prefs.recommended", false);
+  // One IP family for everything a page can observe. On dual-stack lines
+  // HTTP went out over IPv6 while WebRTC STUN reported the IPv4 address, and
+  // checkers (BrowserScan "IP addresses are different", -10%) read that as a
+  // hidden real IP. With a proxy, DNS is resolved by the proxy anyway.
+  LockBool("network.dns.disableIPv6", true);
 }
 
 }  // namespace

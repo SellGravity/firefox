@@ -84,6 +84,7 @@ if (mobile) {
   rule("DPR >= 2", self.window.devicePixelRatio >= 2, String(self.window.devicePixelRatio));
   const winFonts = (self.fonts || []).filter(f => !["Roboto", "Noto Serif", "Droid Sans Mono", "Twemoji Mozilla"].includes(f));
   rule("no desktop fonts visible", winFonts.length === 0, winFonts.join(", "));
+  rule("speechSynthesis API present, no Windows voices", self.speechVoices === 0, String(self.speechVoices));
   rule("Roboto visible", (self.fonts || []).includes("Roboto"));
   const r = self.webgl?.unmaskedRenderer || "";
   rule("WebGL renderer is a phone GPU", /Adreno|Mali|PowerVR|Xclipse/.test(r), r);
@@ -92,6 +93,7 @@ if (mobile) {
   rule("not touch-capable", self.maxTouchPoints === 0 || self.maxTouchPoints === 1 || self.maxTouchPoints === 5, String(self.maxTouchPoints));
   rule("pointer fine", !self.media.pointerCoarse);
   rule("no window.orientation on desktop", !self.media.orientationApi);
+  rule("speechSynthesis API present", typeof self.speechVoices === "number", String(self.speechVoices));
   rule("Roboto hidden on desktop", !(self.fonts || []).includes("Roboto"));
   const r = self.webgl?.unmaskedRenderer || "";
   rule("WebGL renderer Windows ANGLE D3D11", /ANGLE \(.*Direct3D11/.test(r), r);

@@ -30,13 +30,35 @@ export const SGWindow = {
       const w = intPref("sg.fp.screen.width");
       const h = intPref("sg.fp.screen.height");
       if (w > 0 && h > 0) {
+        // Windows will not make a browser window narrower than ~500px, so the
+        // window alone cannot give a 360px content area. Like Responsive
+        // Design Mode, pin every tab's <browser> to the device size (centred)
+        // and only fit the window around it.
+        const css =
+          `.browserStack > browser {` +
+          ` width: ${w}px !important; min-width: ${w}px !important;` +
+          ` max-width: ${w}px !important; height: ${h}px !important;` +
+          ` min-height: ${h}px !important; max-height: ${h}px !important;` +
+          ` justify-self: center !important; align-self: start !important;` +
+          ` flex: none !important; }`;
+        try {
+          win.windowUtils.loadSheetUsingURIString(
+            "data:text/css," + encodeURIComponent(css),
+            win.windowUtils.AUTHOR_SHEET
+          );
+        } catch (e) {
+          console.error("SGWindow: cannot pin mobile viewport", e);
+        }
         const fit = () => {
           const browser = win.gBrowser?.selectedBrowser;
-          if (!browser) {
+          const stack = browser?.parentNode;
+          if (!stack) {
             return;
           }
-          const dx = w - browser.clientWidth;
-          const dy = h - browser.clientHeight;
+          // Grow the window until the stack holds the pinned browser; the
+          // height is fitted exactly, the width may stay wider (min width).
+          const dx = Math.max(0, w - stack.clientWidth);
+          const dy = h - stack.clientHeight;
           if (dx || dy) {
             win.resizeBy(dx, dy);
           }

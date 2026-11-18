@@ -8,6 +8,7 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/ProfilerLabels.h"
 #include "mozilla/StaticPrefs_media.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/dom/nsSpeechTask.h"
 #include "mozilla/dom/nsSynthVoiceRegistry.h"
 #include "nsEscape.h"
@@ -199,6 +200,12 @@ bool SapiService::Init() {
   if (Preferences::GetBool("media.webspeech.synth.test") ||
       !StaticPrefs::media_webspeech_synth_enabled()) {
     // When enabled, we shouldn't add OS backend (Bug 1160844)
+    return false;
+  }
+  // SellGravity antidetect (InviFox): the Android persona keeps the
+  // speechSynthesis API (Firefox for Android has it) but must not list the
+  // host's Windows SAPI voices ("Microsoft David"...).
+  if (StaticPrefs::sg_fp_mobile()) {
     return false;
   }
 

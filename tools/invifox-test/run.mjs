@@ -144,7 +144,20 @@ async function selfCheck(page) {
     r.fonts = fontList.filter(f =>
       Object.keys(base).some(g => widthFor(`"${f}", ${g}`) !== base[g]));
     probe.remove();
-    r.speechVoices = typeof speechSynthesis === "undefined" ? "no-api" : speechSynthesis.getVoices().length;
+    if (typeof speechSynthesis === "undefined") {
+      r.speechVoices = "no-api";
+    } else {
+      let v = speechSynthesis.getVoices();
+      if (!v.length) {
+        await new Promise(res => {
+          speechSynthesis.addEventListener("voiceschanged", res, { once: true });
+          setTimeout(res, 2000);
+        });
+        v = speechSynthesis.getVoices();
+      }
+      r.speechVoices = v.length;
+      r.speechVoiceNames = v.slice(0, 5).map(x => x.name);
+    }
     try {
       await navigator.requestMediaKeySystemAccess("com.widevine.alpha", [{
         initDataTypes: ["cenc"],
@@ -291,20 +304,29 @@ try {
   const vp = await page.evaluate(() => ({ innerWidth, innerHeight, outerWidth, outerHeight, sw: screen.width, sh: screen.height }));
   fs.writeFileSync(path.join(outDir, "selfcheck-viewport.json"), JSON.stringify(vp, null, 2));
 
+  // One stuck page (endless loader, huge screenshot) must not stall the run:
+  // every site gets a hard deadline and a fresh tab after a failure.
+  const withDeadline = (p, ms, what) =>
+    Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${what} deadline ${ms}ms`)), ms))]);
+  let tab = page;
   for (const site of sites) {
     const entry = { site: site.name, url: site.url };
     try {
-      await page.goto(site.url, { waitUntil: "load", timeout: 60000 });
-      await new Promise(r => setTimeout(r, site.wait || 10000));
-      // Self-check on a real https origin too (some APIs differ on about:).
-      entry.selfcheck = await selfCheck(page).catch(e => String(e));
-      await page.screenshot({ path: path.join(outDir, `${site.name}.png`), fullPage: true });
-      const text = await page.evaluate(() => document.body.innerText);
-      fs.writeFileSync(path.join(outDir, `${site.name}.txt`), text);
+      await withDeadline((async () => {
+        await tab.goto(site.url, { waitUntil: "domcontentloaded", timeout: 90000 });
+        await new Promise(r => setTimeout(r, site.wait || 12000));
+        // Self-check on a real https origin too (some APIs differ on about:).
+        entry.selfcheck = await selfCheck(tab).catch(e => String(e));
+        const text = await tab.evaluate(() => document.body.innerText);
+        fs.writeFileSync(path.join(outDir, `${site.name}.txt`), text);
+        await tab.screenshot({ path: path.join(outDir, `${site.name}.png`), fullPage: false });
+      })(), 150000, site.name);
       entry.ok = true;
     } catch (e) {
       entry.ok = false;
       entry.error = String(e);
+      try { await tab.close(); } catch {}
+      try { tab = await browser.newPage(); } catch {}
     }
     console.log(`[site] ${site.name}: ${entry.ok ? "ok" : entry.error}`);
     summary.push(entry);
