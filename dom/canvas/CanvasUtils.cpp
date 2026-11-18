@@ -384,10 +384,13 @@ ImageExtraction ImageExtractionResult(dom::HTMLCanvasElement* aCanvasElement,
   }
 
   // SellGravity antidetect: profile-seeded canvas noise (--canvas-noise).
+  // EfficientRandomize = what stock Firefox 160 does (baseline FPP): the
+  // per-profile key perturbs toDataURL/toBlob output only, getImageData stays
+  // exact, so pixel round-trip tests (CreepJS "rgba noise") see no noise.
   if (StaticPrefs::sg_fp_canvas_noise() &&
       GetCanvasExtractDataPermission(aPrincipal) !=
           nsIPermissionManager::ALLOW_ACTION) {
-    return ImageExtraction::Randomize;
+    return ImageExtraction::EfficientRandomize;
   }
 
   if (ownerDoc->ShouldResistFingerprinting(
@@ -561,7 +564,7 @@ ImageExtraction ImageExtractionResult(dom::OffscreenCanvas* aOffscreenCanvas,
 
   // SellGravity antidetect: profile-seeded canvas noise (--canvas-noise).
   if (StaticPrefs::sg_fp_canvas_noise()) {
-    return ImageExtraction::Randomize;
+    return ImageExtraction::EfficientRandomize;
   }
 
   if (aOffscreenCanvas->ShouldResistFingerprinting(

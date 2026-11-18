@@ -154,12 +154,12 @@ CSSIntRect nsScreen::GetAvailRect() {
     }
   }
 
-  // SellGravity antidetect: launcher screen size. Firefox 160 enables the
-  // baseline FPP target ScreenAvailToResolution by default, so a real Firefox
-  // reports avail == full screen; follow whatever that target says.
-  if (Maybe<CSSIntRect> sg = SGSpoofedScreenRect(
-          /* aAvail = */ !ShouldResistFingerprinting(
-              RFPTarget::ScreenAvailToResolution))) {
+  // SellGravity antidetect: launcher screen size. Real Firefox 160 reports
+  // avail = screen minus taskbar (measured 1080 -> 1032): its remote FPP
+  // overrides switch ScreenAvailToResolution off, and we disable remote
+  // overrides, so never follow that target here. avail == screen is a
+  // headless / spoofing tell (Scanbrowser "Phan cung", CreepJS).
+  if (Maybe<CSSIntRect> sg = SGSpoofedScreenRect(/* aAvail = */ true)) {
     return *sg;
   }
 

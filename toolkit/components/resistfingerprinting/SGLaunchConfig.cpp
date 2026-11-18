@@ -610,8 +610,10 @@ void ApplyHardening() {
   LockBool("app.normandy.enabled", false);
   LockBool("app.shield.optoutstudies.enabled", false);
   LockBool("messaging-system.rsexperimentloader.enabled", false);
-  // Remote settings must not override our fingerprint values.
-  LockBool("privacy.fingerprintingProtection.remoteOverrides.enabled", false);
+  // Remote FPP overrides stay ON like stock Firefox 160: they decide which
+  // baseline targets are active for real users (e.g. they switch
+  // ScreenAvailToResolution off), and every InviFox spoof runs before the
+  // FPP checks, so they cannot undo our values.
   LockBool("privacy.resistFingerprinting", false);
   LockBool("privacy.fingerprintingProtection", false);
   LockBool("privacy.resistFingerprinting.pbmode", false);
@@ -620,11 +622,11 @@ void ApplyHardening() {
   // "recommended" automation prefs, some of them web-visible (popup
   // blocker off, ...).
   LockBool("remote.prefs.recommended", false);
-  // One IP family for everything a page can observe. On dual-stack lines
-  // HTTP went out over IPv6 while WebRTC STUN reported the IPv4 address, and
-  // checkers (BrowserScan "IP addresses are different", -10%) read that as a
-  // hidden real IP. With a proxy, DNS is resolved by the proxy anyway.
-  LockBool("network.dns.disableIPv6", true);
+  // IPv6 stays enabled (stock). Forcing IPv4 on a dual-stack ISP line made
+  // fingerprint.com flag vpn/os_mismatch (the IPv4 path is NATed by the ISP
+  // router, whose TCP signature is not Windows). The BrowserScan "IP
+  // addresses are different" penalty only appears with --webrtc-mode real
+  // and no proxy, where both addresses really are the user's.
 }
 
 }  // namespace
