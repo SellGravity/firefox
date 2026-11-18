@@ -659,7 +659,15 @@ void ApplyLaunchConfig(nsIFile* aProfileDir) {
   if (acceptLang || lang) {
     LockCString("intl.accept_languages",
                 AcceptLanguagesFor(acceptLang ? *acceptLang : *lang));
-    // TODO(P2): JS default locale (Intl.*().resolvedOptions().locale).
+    // JS default locale: first entry of the language list.
+    nsAutoCString first(lang ? *lang : *acceptLang);
+    int32_t c = first.FindChar(',');
+    if (c > 0) first.Truncate(c);
+    first.StripWhitespace();
+    if (int32_t semi = first.FindChar(';'); semi > 0) first.Truncate(semi);
+    if (!first.IsEmpty()) {
+      LockCString("sg.fp.locale", first);
+    }
   }
 
   if (const nsCString* tz = FindArg("timezone")) {

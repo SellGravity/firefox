@@ -4,6 +4,7 @@
 
 // HttpLog.h should generally be included first
 #include "nsHttpChannelAuthProvider.h"
+#include "mozilla/SGLaunchConfig.h"
 
 #include "HttpLog.h"
 #include "MockHttpAuth.h"
@@ -920,6 +921,19 @@ nsresult nsHttpChannelAuthProvider::GetCredentialsForChallenge(
       // hmm... identity invalid, but no auth entry!  the realm probably
       // changed (see bug 201986).
       ident->Clear();
+    }
+
+    // SellGravity antidetect: answer the proxy 407 with the launcher's
+    // --proxy-server credentials instead of showing a dialog. Only once per
+    // channel, so wrong credentials cannot loop.
+    if (!entry && ident->IsEmpty() && proxyAuth && !mSGProxyAuthTried) {
+      nsAutoCString sgUser, sgPass;
+      if (mozilla::sgfp::GetProxyCredentials(sgUser, sgPass)) {
+        mSGProxyAuthTried = true;
+        *ident = nsHttpAuthIdentity(u""_ns, NS_ConvertUTF8toUTF16(sgUser),
+                                    NS_ConvertUTF8toUTF16(sgPass));
+        identFromURI = false;
+      }
     }
 
     if (!entry && ident->IsEmpty()) {

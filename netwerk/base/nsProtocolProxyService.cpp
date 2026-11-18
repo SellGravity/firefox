@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsProtocolProxyService.h"
+#include "mozilla/SGLaunchConfig.h"
 
 #include "SimpleChannel.h"
 #include "mozilla/AutoRestore.h"
@@ -2315,8 +2316,16 @@ nsresult nsProtocolProxyService::Resolve_Internal(nsIChannel* channel,
     port = mSOCKSProxyPort;
   }
 
+  // SellGravity antidetect: SOCKS5 username/password from the launcher's
+  // --proxy-server (prefs cannot carry credentials).
+  nsAutoCString sgUser, sgPass;
+  if (type && host == &mSOCKSProxyTarget &&
+      mSOCKSProxyVersion == nsIProxyInfo::SOCKS_V5) {
+    mozilla::sgfp::GetProxyCredentials(sgUser, sgPass);
+  }
+
   if (type) {
-    rv = NewProxyInfo_Internal(type, *host, port, ""_ns, ""_ns, ""_ns, ""_ns,
+    rv = NewProxyInfo_Internal(type, *host, port, ""_ns, sgUser, sgPass, ""_ns,
                                ""_ns, proxyFlags, UINT32_MAX, nullptr, flags,
                                result);
     if (NS_FAILED(rv)) return rv;

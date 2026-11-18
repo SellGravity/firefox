@@ -20,6 +20,67 @@ const PC_COREQUEST_CID = Components.ID(
   "{74b2122d-65a8-4824-aa9e-3d664cb75dc2}"
 );
 
+// SellGravity antidetect (InviFox): --webrtc-mode=replace. Rewrite every
+// non-host candidate address to the proxy public IP and blank raddr/rport,
+// in candidate events and in local SDP (a=candidate, c=, a=rtcp lines).
+function sgReplaceIp() {
+  if (Services.prefs.getStringPref("sg.fp.webrtc.mode", "") != "replace") {
+    return "";
+  }
+  return Services.prefs.getStringPref("sg.fp.webrtc.public_ip", "");
+}
+
+function sgRewriteCandidate(candidate, ip) {
+  // candidate:<foundation> <component> <transport> <priority> <address>
+  //           <port> typ <type> [raddr <a> rport <p>] ...
+  const t = candidate.split(" ");
+  if (t.length < 8 || t[6] != "typ") {
+    return candidate;
+  }
+  if (t[7] == "host") {
+    return candidate; // mDNS or hidden by media.peerconnection.ice.no_host
+  }
+  const isV6 = ip.includes(":");
+  if (isV6 != t[4].includes(":")) {
+    return candidate; // keep address family consistent
+  }
+  t[4] = ip;
+  for (let i = 8; i + 1 < t.length; i++) {
+    if (t[i] == "raddr") {
+      t[i + 1] = isV6 ? "::" : "0.0.0.0";
+    } else if (t[i] == "rport") {
+      t[i + 1] = "0";
+    }
+  }
+  return t.join(" ");
+}
+
+function sgRewriteSdp(sdp) {
+  const ip = sgReplaceIp();
+  if (!ip || !sdp) {
+    return sdp;
+  }
+  const isV6 = ip.includes(":");
+  return sdp
+    .split("\r\n")
+    .map(line => {
+      if (line.startsWith("a=candidate:")) {
+        return "a=" + sgRewriteCandidate(line.slice(2), ip);
+      }
+      const m = /^(c=IN IP[46] |a=rtcp:\d+ IN IP[46] )(\S+)$/.exec(line);
+      if (
+        m &&
+        m[2] != "0.0.0.0" &&
+        m[2] != "::" &&
+        m[2].includes(":") == isV6
+      ) {
+        return m[1] + ip;
+      }
+      return line;
+    })
+    .join("\r\n");
+}
+
 function logWebRTCMsg(msg, file, line, flag, win) {
   let scriptErrorClass = Cc["@mozilla.org/scripterror;1"];
   let scriptError = scriptErrorClass.createInstance(Ci.nsIScriptError);
@@ -1418,7 +1479,7 @@ export class RTCPeerConnection {
     return this.cacheDescription(
       "_currentLocalDescription",
       this._pc.currentOfferer ? "offer" : "answer",
-      this._pc.currentLocalDescription
+      sgRewriteSdp(this._pc.currentLocalDescription)
     );
   }
 
@@ -1431,7 +1492,7 @@ export class RTCPeerConnection {
     return this.cacheDescription(
       "_pendingLocalDescription",
       type,
-      this._pc.pendingLocalDescription
+      sgRewriteSdp(this._pc.pendingLocalDescription)
     );
   }
 
@@ -1702,6 +1763,10 @@ export class PeerConnectionObserver {
 
   onIceCandidate(sdpMLineIndex, sdpMid, candidate, usernameFragment) {
     let win = this._dompc._win;
+    const sgIp = sgReplaceIp();
+    if (sgIp && candidate) {
+      candidate = sgRewriteCandidate(candidate, sgIp);
+    }
     if (candidate || sdpMid || usernameFragment) {
       if (candidate.includes(" typ relay ")) {
         this._dompc._iceGatheredRelayCandidates = true;

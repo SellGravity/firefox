@@ -493,6 +493,18 @@ LocaleService::GetAppLocaleAsBCP47(nsACString& aRetVal) {
 
 NS_IMETHODIMP
 LocaleService::GetRegionalPrefsLocales(nsTArray<nsCString>& aRetVal) {
+  // SellGravity antidetect: JS default locale (Intl.*().resolvedOptions())
+  // follows the launcher --lang, like a browser running in that language.
+  {
+    nsAutoCString sgLocale;
+    if (NS_SUCCEEDED(Preferences::GetCString("sg.fp.locale", sgLocale)) &&
+        !sgLocale.IsEmpty()) {
+      aRetVal.Clear();
+      aRetVal.AppendElement(sgLocale);
+      return NS_OK;
+    }
+  }
+
   bool useOSLocales =
       Preferences::GetBool("intl.regional_prefs.use_os_locales", false);
 

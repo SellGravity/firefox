@@ -170,6 +170,9 @@ class nsHttpChannelAuthProvider final : public nsIHttpChannelAuthProvider,
   uint32_t mCrossOrigin : 1;
   uint32_t mConnectionBased : 1;
 
+  // SellGravity antidetect: launcher proxy credentials already offered.
+  bool mSGProxyAuthTried = false;
+
   RefPtr<nsHttpHandler> mHttpHandler;  // keep gHttpHandler alive
 
   nsCOMPtr<nsICancelable> mGenerateCredentialsCancelable;

@@ -19885,6 +19885,11 @@
   value: 0
   mirror: always
 
+- name: sg.fp.locale
+  type: String
+  value: ""
+  mirror: never
+
 - name: sg.fp.timezone
   type: DataMutexString
   value: ""
