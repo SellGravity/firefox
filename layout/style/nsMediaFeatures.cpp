@@ -27,6 +27,7 @@
 #include "nsIPrintSettings.h"
 #include "nsIWidget.h"
 #include "nsPresContext.h"
+#include "nsScreen.h"
 #include "nsStyleConsts.h"
 
 using namespace mozilla;
@@ -76,6 +77,14 @@ static nsSize GetDeviceSize(const Document& aDocument) {
     Maybe<CSSIntSize> screenSize = bc->GetScreenAreaOverride();
     if (screenSize.isSome()) {
       return CSSPixel::ToAppUnits(screenSize.value());
+    }
+  }
+
+  // SellGravity antidetect (InviFox): same fake screen as window.screen.
+  if (Maybe<CSSIntRect> sg = nsScreen::SGSpoofedScreenRect(false)) {
+    nsPresContext* sgPc = aDocument.GetPresContext();
+    if (!sgPc || !sgPc->IsRootPaginatedDocument()) {
+      return CSSPixel::ToAppUnits(sg->Size());
     }
   }
 

@@ -3752,11 +3752,34 @@ nsresult nsGlobalWindowInner::GetInnerHeight(CallerType aCallerType,
   return rv.StealNSResult();
 }
 
+// SellGravity antidetect (InviFox): desktop persona with a launcher-defined
+// screen. Keep the reported outer size and position inside the fake screen
+// (outerWidth <= screen.width, screenX + outerWidth <= screen.width, ...),
+// otherwise a real monitor larger than the fake one leaks through.
+static Maybe<CSSIntRect> SGDesktopScreen() {
+  if (StaticPrefs::sg_fp_mobile()) {
+    return Nothing();
+  }
+  return nsScreen::SGSpoofedScreenRect(/* aAvail = */ true);
+}
+
 int32_t nsGlobalWindowInner::GetOuterWidth(CallerType aCallerType,
                                            ErrorResult& aError) {
   // SellGravity antidetect: mobile persona has no browser chrome.
   if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
     return int32_t(std::round(GetInnerWidth(aCallerType, aError)));
+  }
+  if (aCallerType != CallerType::System) {
+    if (Maybe<CSSIntRect> scr = SGDesktopScreen()) {
+      RefPtr<nsGlobalWindowOuter> outer =
+          GetOuterWindowForForwarding(this, aError);
+      if (!outer) {
+        return 0;
+      }
+      int32_t real = outer->GetOuterWidthOuter(aCallerType, aError);
+      int32_t inner = int32_t(std::ceil(GetInnerWidth(aCallerType, aError)));
+      return std::max(inner, std::min(real, scr->Width()));
+    }
   }
   FORWARD_TO_OUTER_OR_THROW(GetOuterWidthOuter, (aCallerType, aError), aError,
                             0);
@@ -3766,6 +3789,18 @@ int32_t nsGlobalWindowInner::GetOuterHeight(CallerType aCallerType,
                                             ErrorResult& aError) {
   if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
     return int32_t(std::round(GetInnerHeight(aCallerType, aError)));
+  }
+  if (aCallerType != CallerType::System) {
+    if (Maybe<CSSIntRect> scr = SGDesktopScreen()) {
+      RefPtr<nsGlobalWindowOuter> outer =
+          GetOuterWindowForForwarding(this, aError);
+      if (!outer) {
+        return 0;
+      }
+      int32_t real = outer->GetOuterHeightOuter(aCallerType, aError);
+      int32_t inner = int32_t(std::ceil(GetInnerHeight(aCallerType, aError)));
+      return std::max(inner, std::min(real, scr->Height()));
+    }
   }
   FORWARD_TO_OUTER_OR_THROW(GetOuterHeightOuter, (aCallerType, aError), aError,
                             0);
@@ -3784,6 +3819,18 @@ int32_t nsGlobalWindowInner::GetScreenX(CallerType aCallerType,
   if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
     return 0;
   }
+  if (aCallerType != CallerType::System) {
+    if (Maybe<CSSIntRect> scr = SGDesktopScreen()) {
+      RefPtr<nsGlobalWindowOuter> outer =
+          GetOuterWindowForForwarding(this, aError);
+      if (!outer) {
+        return 0;
+      }
+      int32_t x = outer->GetScreenXOuter(aCallerType, aError);
+      int32_t w = GetOuterWidth(aCallerType, aError);
+      return std::clamp(x, 0, std::max(0, scr->Width() - w));
+    }
+  }
   FORWARD_TO_OUTER_OR_THROW(GetScreenXOuter, (aCallerType, aError), aError, 0);
 }
 
@@ -3791,6 +3838,18 @@ int32_t nsGlobalWindowInner::GetScreenY(CallerType aCallerType,
                                         ErrorResult& aError) {
   if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
     return 0;
+  }
+  if (aCallerType != CallerType::System) {
+    if (Maybe<CSSIntRect> scr = SGDesktopScreen()) {
+      RefPtr<nsGlobalWindowOuter> outer =
+          GetOuterWindowForForwarding(this, aError);
+      if (!outer) {
+        return 0;
+      }
+      int32_t y = outer->GetScreenYOuter(aCallerType, aError);
+      int32_t h = GetOuterHeight(aCallerType, aError);
+      return std::clamp(y, 0, std::max(0, scr->Height() - h));
+    }
   }
   FORWARD_TO_OUTER_OR_THROW(GetScreenYOuter, (aCallerType, aError), aError, 0);
 }

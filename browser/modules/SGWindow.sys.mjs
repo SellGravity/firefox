@@ -47,8 +47,20 @@ export const SGWindow = {
         win.setTimeout(fit, 1500);
       }
     } else {
-      const w = intPref("sg.fp.window.width");
-      const h = intPref("sg.fp.window.height");
+      let w = intPref("sg.fp.window.width");
+      let h = intPref("sg.fp.window.height");
+      // Never larger than the fake screen (minus a Windows taskbar), so
+      // outerWidth/innerWidth stay consistent with screen.availWidth/Height.
+      const sw = intPref("sg.fp.screen.width");
+      const sh = intPref("sg.fp.screen.height");
+      if (sw > 0 && sh > 0) {
+        if (w <= 0 || h <= 0) {
+          w = win.outerWidth;
+          h = win.outerHeight;
+        }
+        w = Math.min(w, sw);
+        h = Math.min(h, Math.max(1, sh - 40));
+      }
       if (w > 0 && h > 0) {
         win.resizeTo(w, h);
       }

@@ -892,7 +892,9 @@ bool Navigator::Vibrate(const nsTArray<uint32_t>& aPattern) {
 uint32_t Navigator::MaxTouchPoints(CallerType aCallerType) {
   // SellGravity antidetect: mobile persona reports its touch points.
   if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
-    return StaticPrefs::sg_fp_max_touch_points();
+    // Firefox 160 baseline FPP (MaxTouchPointsCollapse) reports 0, 1 or 5.
+    return nsRFPService::CollapseMaxTouchPoints(
+        StaticPrefs::sg_fp_max_touch_points());
   }
 
   nsIDocShell* docshell = GetDocShell();
