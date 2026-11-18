@@ -114,6 +114,11 @@ class MediaDevices final : public DOMEventTargetHelper {
   bool ShouldQueueDeviceChange(const MediaDeviceSet& aExposedDevices) const;
   void ResolveEnumerateDevicesPromise(
       Promise* aPromise, const LocalMediaDeviceSet& aDevices) const;
+  // SellGravity antidetect: profile-defined device list. Returns false when
+  // no --media-device-count was given.
+  bool SGResolveDevices(const LocalMediaDeviceSet& aDevices, bool aLegacy,
+                        bool aCapturePermitted,
+                        nsTArray<RefPtr<MediaDeviceInfo>>& aInfos) const;
 
   nsTHashSet<nsString> mExplicitlyGrantedAudioOutputRawIds;
   nsTArray<RefPtr<Promise>> mPendingEnumerateDevicesPromises;

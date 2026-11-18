@@ -9,7 +9,11 @@
 #include "MediaEngineFake.h"
 #include "MediaTrackConstraints.h"
 #include "mozilla/MediaManager.h"
+#include "mozilla/Base64.h"
+#include "mozilla/HashFunctions.h"
+#include "mozilla/Preferences.h"
 #include "mozilla/StaticPrefs_media.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/dom/BrowsingContext.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/MediaDeviceInfo.h"
@@ -502,6 +506,15 @@ void MediaDevices::ResolveEnumerateDevicesPromise(
       legacy &&
       MediaManager::Get()->IsActivelyCapturingOrHasAPermission(windowId);
 
+  // SellGravity antidetect: --media-device-count=<mic>,<speaker>,<camera>
+  // replaces the real device list (counts, labels, ids) with a profile-stable
+  // one. Exposure rules are kept: before permission at most one entry per
+  // kind with empty id/label, exactly like stock Firefox.
+  if (SGResolveDevices(aDevices, legacy, capturePermitted, infos)) {
+    aPromise->MaybeResolve(std::move(infos));
+    return;
+  }
+
   for (const RefPtr<LocalMediaDevice>& device : aDevices) {
     bool exposeInfo = CanExposeInfo(device->Kind()) || legacy;
     bool exposeLabel = legacy ? capturePermitted : exposeInfo;
@@ -511,6 +524,92 @@ void MediaDevices::ResolveEnumerateDevicesPromise(
         exposeInfo ? device->mGroupID : u""_ns));
   }
   aPromise->MaybeResolve(std::move(infos));
+}
+
+static nsString SGDeviceId(uint32_t aSeed, uint32_t aKind, uint32_t aIndex,
+                           uint32_t aSalt) {
+  uint8_t bytes[32];
+  HashNumber h = AddToHash(HashGeneric(aSeed, aKind, aIndex), aSalt);
+  for (uint8_t& b : bytes) {
+    h ^= h << 13;
+    h ^= h >> 17;
+    h ^= h << 5;
+    b = uint8_t(h);
+  }
+  nsAutoCString b64;
+  if (NS_FAILED(Base64Encode(reinterpret_cast<const char*>(bytes),
+                             sizeof(bytes), b64))) {
+    return u""_ns;
+  }
+  return NS_ConvertASCIItoUTF16(b64);
+}
+
+bool MediaDevices::SGResolveDevices(
+    const LocalMediaDeviceSet& aDevices, bool aLegacy, bool aCapturePermitted,
+    nsTArray<RefPtr<MediaDeviceInfo>>& aInfos) const {
+  nsAutoCString spec;
+  if (NS_FAILED(Preferences::GetCString("sg.fp.media_device_count", spec)) ||
+      spec.IsEmpty()) {
+    return false;
+  }
+  uint32_t counts[3] = {0, 0, 0};  // audioinput, audiooutput, videoinput
+  uint32_t idx = 0;
+  for (const auto& token : spec.Split(',')) {
+    if (idx >= 3) break;
+    nsresult rv;
+    int32_t v = nsCString(token).ToInteger(&rv);
+    counts[idx++] = (NS_SUCCEEDED(rv) && v > 0) ? std::min(v, 4) : 0;
+  }
+
+  static const char16_t* const kMics[] = {
+      u"Microphone (Realtek(R) Audio)", u"Headset Microphone (USB Audio)",
+      u"Microphone Array (Intel® Smart Sound Technology)",
+      u"Stereo Mix (Realtek(R) Audio)"};
+  static const char16_t* const kSpeakers[] = {
+      u"Speakers (Realtek(R) Audio)", u"Headphones (USB Audio)",
+      u"Realtek Digital Output (Realtek(R) Audio)",
+      u"DELL U2419H (NVIDIA High Definition Audio)"};
+  static const char16_t* const kCameras[] = {
+      u"Integrated Camera", u"HD Pro Webcam C920", u"USB2.0 HD UVC WebCam",
+      u"OBS Virtual Camera"};
+  static const char16_t* const* const kLabels[] = {kMics, kSpeakers, kCameras};
+  static const MediaDeviceKind kKinds[] = {MediaDeviceKind::Audioinput,
+                                           MediaDeviceKind::Audiooutput,
+                                           MediaDeviceKind::Videoinput};
+
+  // Firefox only lists audio outputs when it would expose them at all.
+  bool realHasOutput = false;
+  for (const RefPtr<LocalMediaDevice>& device : aDevices) {
+    if (device->Kind() == MediaDeviceKind::Audiooutput) {
+      realHasOutput = true;
+    }
+  }
+
+  // Real Firefox device ids are salted per origin; do the same.
+  uint32_t seed = StaticPrefs::sg_fp_seed_audio() ^ 0x5bd1e995u;
+  if (nsCOMPtr<nsPIDOMWindowInner> win = GetOwnerWindow()) {
+    if (Document* doc = win->GetExtantDoc()) {
+      nsAutoCString origin;
+      if (NS_SUCCEEDED(doc->NodePrincipal()->GetOrigin(origin))) {
+        seed = AddToHash(seed, HashString(origin));
+      }
+    }
+  }
+  for (uint32_t k = 0; k < 3; ++k) {
+    if (kKinds[k] == MediaDeviceKind::Audiooutput && !realHasOutput) {
+      continue;
+    }
+    const bool exposeInfo = CanExposeInfo(kKinds[k]) || aLegacy;
+    const bool exposeLabel = aLegacy ? aCapturePermitted : exposeInfo;
+    const uint32_t n = exposeInfo ? counts[k] : std::min(counts[k], 1u);
+    for (uint32_t i = 0; i < n; ++i) {
+      aInfos.AppendElement(MakeRefPtr<MediaDeviceInfo>(
+          exposeInfo ? SGDeviceId(seed, k, i, 1) : u""_ns, kKinds[k],
+          exposeLabel ? nsString(kLabels[k][i]) : nsString(),
+          exposeInfo ? SGDeviceId(seed, k, i, 2) : u""_ns));
+    }
+  }
+  return true;
 }
 
 already_AddRefed<Promise> MediaDevices::GetDisplayMedia(
