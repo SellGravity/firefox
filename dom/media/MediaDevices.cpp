@@ -591,7 +591,7 @@ bool MediaDevices::SGResolveDevices(
     if (Document* doc = win->GetExtantDoc()) {
       nsAutoCString origin;
       if (NS_SUCCEEDED(doc->NodePrincipal()->GetOrigin(origin))) {
-        seed = AddToHash(seed, HashString(origin));
+        seed = AddToHash(seed, HashString(origin.get(), origin.Length()));
       }
     }
   }

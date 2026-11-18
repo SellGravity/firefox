@@ -643,7 +643,8 @@ static bool SGIsFontHidden(const nsACString& aLowerName) {
   }
   for (const char* optional : kSGOptionalFonts) {
     if (aLowerName.Equals(optional)) {
-      HashNumber h = mozilla::AddToHash(seed, mozilla::HashString(optional));
+      mozilla::HashNumber h =
+          mozilla::AddToHash(seed, mozilla::HashString(optional));
       h ^= h >> 16;
       h *= 0x7feb352dU;
       h ^= h >> 15;

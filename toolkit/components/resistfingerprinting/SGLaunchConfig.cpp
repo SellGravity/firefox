@@ -325,7 +325,10 @@ nsCString AcceptLanguagesFor(const nsACString& aLang) {
   }
   nsAutoCString out(lang);
   int32_t dash = lang.FindChar('-');
-  nsAutoCString base(dash > 0 ? Substring(lang, 0, dash) : lang);
+  nsAutoCString base(lang);
+  if (dash > 0) {
+    base.Truncate(dash);
+  }
   if (!base.Equals(lang)) {
     out += ", "_ns + base;
   }
@@ -361,16 +364,21 @@ void ApplyProxy(const nsACString& aProxy) {
   if (sep > 0) {
     scheme = Substring(rest, 0, sep);
     ToLowerCase(scheme);
-    rest = Substring(rest, sep + 3);
+    nsAutoCString tail(Substring(rest, sep + 3));
+    rest = tail;
   }
   int32_t at = rest.RFindChar('@');
   if (at > 0) {
     nsAutoCString creds(Substring(rest, 0, at));
-    rest = Substring(rest, at + 1);
+    nsAutoCString hostPort(Substring(rest, at + 1));
+    rest = hostPort;
     int32_t colon = creds.FindChar(':');
     nsAutoCString user, pass;
-    NS_UnescapeURL(colon >= 0 ? Substring(creds, 0, colon) : creds,
-                   esc_AlwaysCopy, user);
+    nsAutoCString rawUser(creds);
+    if (colon >= 0) {
+      rawUser.Truncate(colon);
+    }
+    NS_UnescapeURL(rawUser, esc_AlwaysCopy, user);
     if (colon >= 0) {
       NS_UnescapeURL(Substring(creds, colon + 1), esc_AlwaysCopy, pass);
     }
@@ -646,7 +654,11 @@ bool GetProxyCredentials(nsACString& aUser, nsACString& aPass) {
     return false;
   }
   aUser = *sProxyUser;
-  aPass = sProxyPass ? *sProxyPass : ""_ns;
+  if (sProxyPass) {
+    aPass = *sProxyPass;
+  } else {
+    aPass.Truncate();
+  }
   return true;
 }
 
