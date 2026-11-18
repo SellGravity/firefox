@@ -622,11 +622,13 @@ void ApplyHardening() {
   // "recommended" automation prefs, some of them web-visible (popup
   // blocker off, ...).
   LockBool("remote.prefs.recommended", false);
-  // IPv6 stays enabled (stock). Forcing IPv4 on a dual-stack ISP line made
-  // fingerprint.com flag vpn/os_mismatch (the IPv4 path is NATed by the ISP
-  // router, whose TCP signature is not Windows). The BrowserScan "IP
-  // addresses are different" penalty only appears with --webrtc-mode real
-  // and no proxy, where both addresses really are the user's.
+  // One IP family for everything a page can observe. On dual-stack lines
+  // HTTP went out over IPv6 while WebRTC STUN reported the IPv4 address, and
+  // BrowserScan ("IP addresses are different", -10%) read that as a hidden
+  // real IP. (fingerprint.com os_mismatch on this ISP is network-level: it
+  // shows for stock Firefox with IPv6 on too.) With a proxy, DNS is resolved
+  // by the proxy anyway, so this only matters without one.
+  LockBool("network.dns.disableIPv6", true);
 }
 
 }  // namespace

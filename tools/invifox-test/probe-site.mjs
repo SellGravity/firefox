@@ -32,7 +32,7 @@ try {
       const el = els.find(e => e.children.length < 4 && e.textContent.trim().startsWith(label));
       (el?.closest("button,a,[role=button],div") || el)?.click();
     }, opts.click);
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, Number(opts.after || 3000)));
   }
   const text = await page.evaluate(() => document.body.innerText);
   console.log(text);
