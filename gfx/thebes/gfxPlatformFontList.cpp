@@ -21,6 +21,8 @@
 #include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/StaticPrefs_mathml.h"
+#include "mozilla/HashFunctions.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/TextUtils.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/dom/BlobImpl.h"
@@ -586,7 +588,85 @@ void gfxPlatformFontList::FontWhitelistPrefChanged(const char* aPref,
   dom::ContentParent::NotifyUpdatedFonts(true);
 }
 
+// SellGravity antidetect (InviFox): hide fonts per profile, like real
+// machines that differ by which optional font packs (Office etc.) exist.
+//  - sg.fp.fonts.exclude: explicit comma list from --font-exclusion-list.
+//  - --fonts-noise: a seed-chosen ~45% of OPTIONAL fonts is hidden. Core
+//    system fonts are never in the pool, so pages never break.
+static const char* const kSGOptionalFonts[] = {
+    "agency fb", "algerian", "bauhaus 93", "bell mt", "berlin sans fb",
+    "bernard mt condensed", "blackadder itc", "bodoni mt", "book antiqua",
+    "bookman old style", "bradley hand itc", "britannic bold", "broadway",
+    "brush script mt", "californian fb", "calisto mt", "castellar",
+    "centaur", "century", "century gothic", "century schoolbook", "chiller",
+    "colonna mt", "cooper black", "copperplate gothic bold",
+    "copperplate gothic light", "curlz mt", "edwardian script itc",
+    "elephant", "engravers mt", "eras bold itc", "eras demi itc",
+    "eras light itc", "eras medium itc", "felix titling",
+    "footlight mt light", "forte", "franklin gothic book",
+    "franklin gothic demi", "franklin gothic heavy", "freestyle script",
+    "french script mt", "garamond", "gigi", "gill sans mt", "gloucester mt extra condensed",
+    "goudy old style", "goudy stout", "haettenschweiler", "harlow solid italic",
+    "harrington", "high tower text", "imprint mt shadow", "informal roman",
+    "jokerman", "juice itc", "kristen itc", "kunstler script", "lucida bright",
+    "lucida calligraphy", "lucida fax", "lucida handwriting",
+    "magneto", "maiandra gd", "matura mt script capitals", "mistral",
+    "modern no. 20", "monotype corsiva", "niagara engraved", "niagara solid",
+    "ocr a extended", "old english text mt", "onyx", "palace script mt",
+    "papyrus", "parchment", "perpetua", "perpetua titling mt", "playbill",
+    "poor richard", "pristina", "rage italic", "ravie", "rockwell",
+    "rockwell condensed", "script mt bold", "showcard gothic", "snap itc",
+    "stencil", "tempus sans itc", "tw cen mt", "viner hand itc", "vivaldi",
+    "vladimir script", "wide latin",
+};
+
+static bool SGIsFontHidden(const nsACString& aLowerName) {
+  if (!StaticPrefs::sg_fp_enabled()) {
+    return false;
+  }
+  {
+    const auto list = StaticPrefs::sg_fp_fonts_exclude();
+    for (const auto& token : list->Split(',')) {
+      nsAutoCString name(token);
+      name.Trim(" ");
+      ToLowerCase(name);
+      if (!name.IsEmpty() && name.Equals(aLowerName)) {
+        return true;
+      }
+    }
+  }
+  const uint32_t seed = StaticPrefs::sg_fp_fonts_noise()
+                            ? StaticPrefs::sg_fp_seed_fonts()
+                            : 0;
+  if (!seed) {
+    return false;
+  }
+  for (const char* optional : kSGOptionalFonts) {
+    if (aLowerName.Equals(optional)) {
+      HashNumber h = mozilla::AddToHash(seed, mozilla::HashString(optional));
+      h ^= h >> 16;
+      h *= 0x7feb352dU;
+      h ^= h >> 15;
+      return (h % 100) < 45;
+    }
+  }
+  return false;
+}
+
 void gfxPlatformFontList::ApplyWhitelist() {
+  if (StaticPrefs::sg_fp_enabled()) {
+    AutoTArray<nsCString, 16> hidden;
+    for (const auto& entry : mFontFamilies) {
+      nsAutoCString name(entry.GetKey());
+      ToLowerCase(name);
+      if (SGIsFontHidden(name)) {
+        hidden.AppendElement(entry.GetKey());
+      }
+    }
+    for (const auto& key : hidden) {
+      mFontFamilies.Remove(key);
+    }
+  }
   uint32_t numFonts = mEnabledFontsList.Length();
   if (!mFontFamilyWhitelistActive) {
     return;
@@ -623,6 +703,11 @@ void gfxPlatformFontList::ApplyWhitelist() {
 void gfxPlatformFontList::ApplyWhitelist(
     nsTArray<fontlist::Family::InitData>& aFamilies) {
   mLock.AssertCurrentThreadIn();
+  if (StaticPrefs::sg_fp_enabled()) {
+    aFamilies.RemoveElementsBy([](const fontlist::Family::InitData& f) {
+      return SGIsFontHidden(f.mKey);
+    });
+  }
   if (!mFontFamilyWhitelistActive) {
     return;
   }
