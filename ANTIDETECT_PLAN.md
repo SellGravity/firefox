@@ -161,3 +161,28 @@ Việc còn lại để Android đạt mức tối đa:
 Trên iOS, mọi trình duyệt (kể cả Firefox iOS) đều phải chạy **WebKit + JavaScriptCore**. Gecko (cũng như Blink bên Chromium) có JS engine, CSS, định dạng lỗi/stack và tập API khác hẳn. Các trang như CreepJS hay fingerprint.com nhận ra ngay bằng feature detection, dù UA và các con số có đúng đến đâu.
 
 Vì vậy InviFox không giả làm iOS: UA iPhone/iPad sẽ được chuyển sang persona Firefox Android và ghi log. Muốn persona iOS thật thì phải có engine WebKit, ví dụ một bản WebKit/Playwright-WebKit build riêng, hoặc thiết bị iOS thật hay cloud phone.
+
+## 9. Trạng thái tổng hợp (2026-11-18, nhánh `develop`, CHƯA build)
+
+| Bề mặt | Trạng thái | Ghi chú |
+|---|---|---|
+| UA / platform / oscpu / appVersion (desktop + Android) | xong | luôn khớp engine 160 |
+| Timezone (Date, Intl, mọi process) | xong | `MOZ_SG_TIMEZONE` |
+| Ngôn ngữ + locale `Intl` | xong | `sg.fp.locale` |
+| hardwareConcurrency (window + worker) | xong | |
+| screen / avail / outer / screenX | xong | |
+| navigator.webdriver, remote agent prefs, biểu tượng robot | xong | |
+| WebGL vendor/renderer | xong | Firefox tự rút gọn chuỗi; tham số ANGLE D3D11 giống nhau trên mọi GPU Windows |
+| WebGPU adapter info | giữ nguyên | Firefox thật trả chuỗi rỗng |
+| Canvas 2D + WebGL readback noise | xong | khoá theo nội dung, ổn định giữa các lần đọc, khớp với drawImage |
+| Audio (Offline render + Analyser) | xong | |
+| Font (loại trừ / seed / danh sách Android) | xong | |
+| Proxy HTTP/SOCKS5 + xác thực, DNS từ xa, không fallback kết nối thẳng | xong | |
+| WebRTC disable / forward / replace | xong | `getStats()` chưa ghi đè địa chỉ |
+| Geolocation block / ask / allow / toạ độ / ip | xong | mode `ip` dùng BeaconDB qua proxy |
+| Thiết bị media (số lượng, nhãn, id theo origin) | xong | |
+| Persona mobile Android | xong | touch, DPR, hướng màn hình, `window.orientation`, viewport, font, không giọng TTS |
+| iOS | không làm | Gecko không thể giả WebKit |
+| Kích thước / vị trí cửa sổ | xong | `SGWindow.sys.mjs` |
+
+Bước tiếp theo: build → sửa lỗi biên dịch → `tools/invifox-test` → so với Firefox 160 thật → sửa các điểm lộ.
