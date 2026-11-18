@@ -904,11 +904,10 @@ function getShutdownTimeout() {
 function getWebDriverBrowserName() {
   // Similar to chromedriver which reports "chrome" as browser name for all
   // WebView apps, we will report "firefox" for all GeckoView apps.
-  if (lazy.AppInfo.isAndroid) {
-    return "firefox";
-  }
-
-  return lazy.AppInfo.name?.toLowerCase();
+  // SellGravity (InviFox): the app is branded "InviFox", but automation
+  // clients (Puppeteer, Playwright, Selenium) pick the Firefox code path from
+  // this value; anything else makes them treat us as Chrome (goog:cdp).
+  return "firefox";
 }
 
 function getWebDriverPlatformName() {

@@ -256,6 +256,7 @@ const args = launcherShape
   : [
       ...fpArgs,
       "-no-remote",
+      "-wait-for-browser", // like the launcher: track the real browser, not the stub
       "-profile", profileDir,
       `--remote-debugging-port=${port}`,
       "about:blank",
@@ -283,6 +284,12 @@ try {
   const self = await selfCheck(page).catch(e => ({ error: String(e) }));
   fs.writeFileSync(path.join(outDir, "selfcheck.json"), JSON.stringify(self, null, 2));
   console.log("[selfcheck]", JSON.stringify(self, null, 2));
+  // Mobile-friendly page: innerWidth must equal the device width there.
+  await page.goto(
+    "data:text/html,<meta name=viewport content=\"width=device-width,initial-scale=1\"><body>vp</body>"
+  );
+  const vp = await page.evaluate(() => ({ innerWidth, innerHeight, outerWidth, outerHeight, sw: screen.width, sh: screen.height }));
+  fs.writeFileSync(path.join(outDir, "selfcheck-viewport.json"), JSON.stringify(vp, null, 2));
 
   for (const site of sites) {
     const entry = { site: site.name, url: site.url };

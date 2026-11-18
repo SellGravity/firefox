@@ -58,7 +58,11 @@ if (ss && !mobile) {
   const [w, h] = ss.split(",").map(Number);
   rule("screen = --screen-size", self.screen.width === w && self.screen.height === h, `${self.screen.width}x${self.screen.height} vs ${ss}`);
 }
-for (const [k, v] of Object.entries(self.consistency || {})) rule(`window/screen: ${k}`, v);
+for (const [k, v] of Object.entries(self.consistency || {})) {
+  // Phones lay out pages without <meta viewport> at 980px: inner > outer is real.
+  if (mobile && k === "innerWithinOuter") continue;
+  rule(`window/screen: ${k}`, v);
+}
 rule("CSS device-width = screen.width", self.media.deviceWidthMatchesScreen);
 rule("CSS device-height = screen.height", self.media.deviceHeightMatchesScreen);
 rule("CSS resolution = devicePixelRatio", self.media.resolutionMatchesDpr);
@@ -70,7 +74,12 @@ if (mobile) {
   rule("hover: none", self.media.hoverNone);
   rule("ontouchstart in window", self.media.touchEvent);
   rule("window.orientation + onorientationchange", self.media.orientationApi && self.media.onorientationchange);
-  rule("outer == inner (no chrome)", self.window.outerWidth === self.window.innerWidth, `${self.window.outerWidth}/${self.window.innerWidth}`);
+  if (fs.existsSync(path.join(dir, "selfcheck-viewport.json"))) {
+    const vp = read(dir, "selfcheck-viewport.json");
+    rule("meta-viewport page: innerWidth == device width", vp.innerWidth === vp.sw, `${vp.innerWidth}/${vp.sw}`);
+    rule("meta-viewport page: innerHeight <= device height", vp.innerHeight <= vp.sh, `${vp.innerHeight}/${vp.sh}`);
+  }
+  rule("outerWidth == device width", self.window.outerWidth === self.screen.width, `${self.window.outerWidth}/${self.screen.width}`);
   rule("screen portrait", self.screen.height > self.screen.width);
   rule("DPR >= 2", self.window.devicePixelRatio >= 2, String(self.window.devicePixelRatio));
   const winFonts = (self.fonts || []).filter(f => !["Roboto", "Noto Serif", "Droid Sans Mono", "Twemoji Mozilla"].includes(f));

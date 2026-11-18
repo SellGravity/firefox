@@ -49,7 +49,7 @@ export const SGWindow = {
     } else {
       let w = intPref("sg.fp.window.width");
       let h = intPref("sg.fp.window.height");
-      // Never larger than the fake screen (minus a Windows taskbar), so
+      // Never larger than the fake screen (minus the Windows 11 taskbar), so
       // outerWidth/innerWidth stay consistent with screen.availWidth/Height.
       const sw = intPref("sg.fp.screen.width");
       const sh = intPref("sg.fp.screen.height");
@@ -59,7 +59,7 @@ export const SGWindow = {
           h = win.outerHeight;
         }
         w = Math.min(w, sw);
-        h = Math.min(h, Math.max(1, sh - 40));
+        h = Math.min(h, Math.max(1, sh - 48));
       }
       if (w > 0 && h > 0) {
         win.resizeTo(w, h);

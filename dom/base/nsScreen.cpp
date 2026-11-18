@@ -119,7 +119,7 @@ Maybe<CSSIntRect> nsScreen::SGSpoofedScreenRect(bool aAvail) {
   // availHeight excludes the OS taskbar / menu bar, like a real desktop.
   nsAutoCString platform;
   Preferences::GetCString("general.platform.override", platform);
-  int32_t reserved = 40;  // Windows taskbar at 100% scale
+  int32_t reserved = 48;  // Windows 11 taskbar at 100% scale (measured)
   if (platform.EqualsLiteral("MacIntel")) {
     reserved = 25;  // macOS menu bar (Dock auto-hidden)
   } else if (StringBeginsWith(platform, "Linux"_ns)) {

@@ -3765,8 +3765,13 @@ static Maybe<CSSIntRect> SGDesktopScreen() {
 
 int32_t nsGlobalWindowInner::GetOuterWidth(CallerType aCallerType,
                                            ErrorResult& aError) {
-  // SellGravity antidetect: mobile persona has no browser chrome.
+  // SellGravity antidetect: mobile persona. Like a phone, outerWidth is the
+  // device width (independent of the 980px layout viewport of pages without
+  // <meta viewport>).
   if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
+    if (int32_t w = StaticPrefs::sg_fp_screen_width(); w > 0) {
+      return w;
+    }
     return int32_t(std::round(GetInnerWidth(aCallerType, aError)));
   }
   if (aCallerType != CallerType::System) {
@@ -3788,6 +3793,9 @@ int32_t nsGlobalWindowInner::GetOuterWidth(CallerType aCallerType,
 int32_t nsGlobalWindowInner::GetOuterHeight(CallerType aCallerType,
                                             ErrorResult& aError) {
   if (aCallerType != CallerType::System && StaticPrefs::sg_fp_mobile()) {
+    if (int32_t h = StaticPrefs::sg_fp_screen_height(); h > 0) {
+      return h;
+    }
     return int32_t(std::round(GetInnerHeight(aCallerType, aError)));
   }
   if (aCallerType != CallerType::System) {
