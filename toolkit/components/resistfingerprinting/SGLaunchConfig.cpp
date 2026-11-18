@@ -552,6 +552,26 @@ void ApplyMobile() {
   if (ds && ParsePair(*ds, w, h) && w > 0 && h > 0) {
     // Portrait: width < height.
     if (w > h) std::swap(w, h);
+    // The persona is always Firefox for Android, but the launcher data set
+    // also holds iPhone viewports (375x812, 390x844...), which no Android
+    // phone reports. Map them to the closest common Android viewport.
+    static const struct {
+      int32_t iw, ih, aw, ah;
+    } kIphoneToAndroid[] = {
+        {320, 568, 360, 640}, {375, 667, 360, 640}, {375, 812, 360, 800},
+        {390, 844, 393, 873}, {393, 852, 393, 873}, {402, 874, 412, 915},
+        {414, 736, 412, 846}, {414, 896, 412, 915}, {428, 926, 412, 915},
+        {430, 932, 412, 915}, {440, 956, 412, 915},
+    };
+    for (const auto& m : kIphoneToAndroid) {
+      if (w == m.iw && h == m.ih) {
+        SG_LOG("iPhone viewport %dx%d mapped to Android %dx%d", w, h, m.aw,
+               m.ah);
+        w = m.aw;
+        h = m.ah;
+        break;
+      }
+    }
     LockInt("sg.fp.screen.width", w);
     LockInt("sg.fp.screen.height", h);
   } else {
@@ -785,8 +805,19 @@ void ApplyLaunchConfig(nsIFile* aProfileDir) {
     LockCString("sg.fp.fonts.exclude", *f);
   }
 
+  // "0,0,0" is what the launcher sends when the profile never set device
+  // counts: keep real Firefox behaviour then (pre-permission it only shows
+  // one blank entry per available kind) instead of claiming no devices.
   if (const nsCString* m = FindArg("media-device-count")) {
-    LockCString("sg.fp.media_device_count", *m);
+    bool allZero = true;
+    for (char ch : *m) {
+      if (ch >= '1' && ch <= '9') {
+        allZero = false;
+      }
+    }
+    if (!allZero) {
+      LockCString("sg.fp.media_device_count", *m);
+    }
   }
 
   // --- network ---------------------------------------------------------------

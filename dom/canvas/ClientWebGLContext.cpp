@@ -24,6 +24,7 @@
 #include "mozilla/RandomNum.h"
 #include "mozilla/ResultVariant.h"
 #include "mozilla/ScopeExit.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/StaticPrefs_webgl.h"
 #include "mozilla/dom/BufferSourceBinding.h"
 #include "mozilla/dom/CanvasRenderingContextHelper.h"
@@ -75,6 +76,45 @@ static int SGGpuVendorFamily(const std::string& aStr) {
     return 4;
   }
   return 0;  // unknown: no opinion
+}
+
+static bool SGIsMobileGpu(const std::string& aStr) {
+  for (const char* gpu :
+       {"Adreno", "Mali", "PowerVR", "Xclipse", "Immortalis", "Maleoon"}) {
+    if (aStr.find(gpu) != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Per-profile phone GPU when the launcher gave none (its data set has no
+// mobile GPUs). Weighted towards the most common Firefox-for-Android GPUs.
+static std::string SGDefaultMobileRenderer() {
+  static const char* const kGpus[] = {
+      "Adreno (TM) 740", "Adreno (TM) 730", "Adreno (TM) 650",
+      "Adreno (TM) 642L", "Adreno (TM) 619", "Adreno (TM) 610",
+      "Mali-G710",       "Mali-G78",        "Mali-G68",
+      "Mali-G57",
+  };
+  uint32_t seed = StaticPrefs::sg_fp_seed_canvas();
+  seed ^= seed >> 13;
+  seed *= 0x5bd1e995U;
+  seed ^= seed >> 15;
+  return kGpus[seed % std::size(kGpus)];
+}
+
+static std::string SGMobileGpuVendor(const std::string& aRenderer) {
+  if (aRenderer.find("Adreno") != std::string::npos) {
+    return "Qualcomm";
+  }
+  if (aRenderer.find("PowerVR") != std::string::npos) {
+    return "Imagination Technologies";
+  }
+  if (aRenderer.find("Xclipse") != std::string::npos) {
+    return "Samsung Electronics Co., Ltd.";
+  }
+  return "ARM";
 }
 
 // -
@@ -2471,39 +2511,50 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
   // -
 
   if (!debug) {
-    // SellGravity antidetect: the launcher override only applies when it is
-    // the same GPU vendor family as the real adapter (see SGGpuVendorFamily).
-    const auto OverrideMatchesRealGpu = [&](const std::string& aOverride) {
-      const auto real = GetString(LOCAL_GL_RENDERER);
-      if (!real) {
-        return true;
+    // SellGravity antidetect (InviFox): which renderer/vendor strings the
+    // profile reports.
+    //  - Android persona: always a phone GPU. The launcher value is used when
+    //    it is one (Adreno/Mali/...), otherwise a per-profile pick, since a
+    //    Windows ANGLE "Direct3D11" string would give the host OS away.
+    //  - Desktop: the launcher value only when it is a Windows ANGLE D3D11
+    //    string of the same vendor family as the real GPU (a Mesa/LLVM string
+    //    reads as a VM, another vendor as tampering - Chromium audit A2/A3);
+    //    otherwise the real adapter, as real Firefox reports it.
+    const auto SGFakeRenderer = [&]() -> Maybe<std::string> {
+      const auto prefLock = StaticPrefs::webgl_override_unmasked_renderer();
+      const std::string fake = ToString(*prefLock);
+      if (StaticPrefs::sg_fp_mobile()) {
+        return Some(SGIsMobileGpu(fake) ? fake : SGDefaultMobileRenderer());
       }
-      const int realFamily = SGGpuVendorFamily(*real);
-      const int fakeFamily = SGGpuVendorFamily(aOverride);
-      return !realFamily || !fakeFamily || realFamily == fakeFamily;
+      if (fake.empty() || fake.find("Direct3D") == std::string::npos) {
+        return Nothing();
+      }
+      const auto real = GetString(LOCAL_GL_RENDERER);
+      if (real) {
+        const int realFamily = SGGpuVendorFamily(*real);
+        const int fakeFamily = SGGpuVendorFamily(fake);
+        if (realFamily && fakeFamily && realFamily != fakeFamily) {
+          return Nothing();
+        }
+      }
+      return Some(fake);
     };
 
     const auto GetUnmaskedRenderer = [&]() {
-      const auto prefLock = StaticPrefs::webgl_override_unmasked_renderer();
-      if (!prefLock->IsEmpty()) {
-        std::string fake = ToString(*prefLock);
-        if (OverrideMatchesRealGpu(fake)) {
-          return Some(fake);
-        }
+      if (auto fake = SGFakeRenderer()) {
+        return fake;
       }
       return GetString(LOCAL_GL_RENDERER);
     };
 
     const auto GetUnmaskedVendor = [&]() {
-      const auto prefLock = StaticPrefs::webgl_override_unmasked_vendor();
-      if (!prefLock->IsEmpty()) {
-        std::string fake = ToString(*prefLock);
-        const auto rendererLock =
-            StaticPrefs::webgl_override_unmasked_renderer();
-        const std::string fakeRenderer = ToString(*rendererLock);
-        if (OverrideMatchesRealGpu(fakeRenderer.empty() ? fake
-                                                        : fakeRenderer)) {
-          return Some(fake);
+      if (auto fake = SGFakeRenderer()) {
+        if (StaticPrefs::sg_fp_mobile()) {
+          return Some(SGMobileGpuVendor(*fake));
+        }
+        const auto prefLock = StaticPrefs::webgl_override_unmasked_vendor();
+        if (!prefLock->IsEmpty()) {
+          return Some(ToString(*prefLock));
         }
       }
       return GetString(LOCAL_GL_VENDOR);
