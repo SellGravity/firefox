@@ -88,6 +88,9 @@ if (!fpArgs) {
 async function selfCheck(page) {
   return page.evaluate(async () => {
     const r = {};
+    const T0 = performance.now();
+    r.t = {};
+    const mark = k => { r.t[k] = Math.round(performance.now() - T0); };
     const n = navigator;
     Object.assign(r, {
       userAgent: n.userAgent,
@@ -131,6 +134,7 @@ async function selfCheck(page) {
       innerWithinOuter: innerWidth <= outerWidth && innerHeight <= outerHeight,
       availWithinScreen: screen.availWidth <= screen.width && screen.availHeight <= screen.height,
     };
+    mark("fonts");
     // Font presence by width probe (the method detection scripts use).
     const probe = document.createElement("span");
     probe.style.cssText = "position:absolute;left:-9999px;font-size:72px";
@@ -140,9 +144,14 @@ async function selfCheck(page) {
     const base = { serif: widthFor("serif"), "sans-serif": widthFor("sans-serif"), monospace: widthFor("monospace") };
     const fontList = ["Arial", "Times New Roman", "Courier New", "Verdana", "Tahoma", "Georgia",
       "Segoe UI", "Calibri", "Cambria", "Consolas", "Segoe UI Emoji", "Microsoft YaHei",
-      "Roboto", "Noto Serif", "Droid Sans Mono", "Helvetica", "Twemoji Mozilla"];
+      "Roboto", "Noto Serif", "Droid Sans Mono", "Helvetica", "Twemoji Mozilla",
+      "Noto Color Emoji", "Noto Sans CJK KR", "Noto Serif CJK JP"];
     r.fonts = fontList.filter(f =>
       Object.keys(base).some(g => widthFor(`"${f}", ${g}`) !== base[g]));
+    // CJK must render with real glyphs (~1em wide), not .notdef hex boxes.
+    probe.style.fontFamily = "sans-serif"; probe.style.fontSize = "40px";
+    probe.textContent = "中文字한국어";
+    r.cjkEm = Math.round((probe.offsetWidth / 240) * 100) / 100;
     probe.remove();
     {
       const sf = document.createElement("div");
@@ -151,6 +160,7 @@ async function selfCheck(page) {
       r.systemFont = getComputedStyle(sf).fontFamily;
       sf.remove();
     }
+    mark("speech");
     if (typeof speechSynthesis === "undefined") {
       r.speechVoices = "no-api";
     } else {
@@ -165,6 +175,7 @@ async function selfCheck(page) {
       r.speechVoices = v.length;
       r.speechVoiceNames = v.slice(0, 5).map(x => x.name);
     }
+    mark("widevine");
     try {
       await navigator.requestMediaKeySystemAccess("com.widevine.alpha", [{
         initDataTypes: ["cenc"],
@@ -174,6 +185,7 @@ async function selfCheck(page) {
     } catch (e) {
       r.widevine = String(e.name || e);
     }
+    mark("intl");
     r.intl = {
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       locale: Intl.DateTimeFormat().resolvedOptions().locale,
@@ -194,6 +206,7 @@ async function selfCheck(page) {
     } catch (e) {
       r.webgl = String(e);
     }
+    mark("canvas");
     const hash = async buf => {
       const d = await crypto.subtle.digest("SHA-256", buf);
       return [...new Uint8Array(d)].slice(0, 8).map(b => b.toString(16).padStart(2, "0")).join("");
@@ -223,6 +236,7 @@ async function selfCheck(page) {
     } catch (e) {
       r.canvas = String(e);
     }
+    mark("audio");
     try {
       const ctx = new OfflineAudioContext(1, 44100, 44100);
       const osc = ctx.createOscillator();
@@ -241,12 +255,14 @@ async function selfCheck(page) {
     } catch (e) {
       r.audio = String(e);
     }
+    mark("devices");
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       r.mediaDevices = devices.map(d => d.kind);
     } catch (e) {
       r.mediaDevices = String(e);
     }
+    mark("end");
     return r;
   });
 }
@@ -318,16 +334,27 @@ try {
   let tab = page;
   for (const site of sites) {
     const entry = { site: site.name, url: site.url };
+    // The work below keeps running after a deadline fires; bind it to THIS
+    // tab and stop writing once expired, or a late step would record the next
+    // site's page under this site's name.
+    const t = tab;
+    let expired = false;
+    const t0 = Date.now();
     try {
       await withDeadline((async () => {
-        await tab.goto(site.url, { waitUntil: "domcontentloaded", timeout: 90000 });
+        await t.goto(site.url, { waitUntil: "domcontentloaded", timeout: 90000 });
+        entry.loadMs = Date.now() - t0;
         await new Promise(r => setTimeout(r, site.wait || 12000));
         // Self-check on a real https origin too (some APIs differ on about:).
-        entry.selfcheck = await selfCheck(tab).catch(e => String(e));
-        const text = await tab.evaluate(() => document.body.innerText);
+        const sc = await selfCheck(t).catch(e => String(e));
+        entry.selfcheckMs = Date.now() - t0;
+        const text = await t.evaluate(() => document.body.innerText);
+        if (expired) return;
+        entry.selfcheck = sc;
         fs.writeFileSync(path.join(outDir, `${site.name}.txt`), text);
-        await tab.screenshot({ path: path.join(outDir, `${site.name}.png`), fullPage: false });
-      })(), 150000, site.name);
+        await t.screenshot({ path: path.join(outDir, `${site.name}.png`), fullPage: false });
+        entry.totalMs = Date.now() - t0;
+      })(), 150000, site.name).catch(e => { expired = true; throw e; });
       entry.ok = true;
     } catch (e) {
       entry.ok = false;

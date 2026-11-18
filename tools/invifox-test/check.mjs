@@ -83,11 +83,12 @@ if (mobile) {
   rule("outerHeight < screen.height (Android system bars)", self.window.outerHeight < self.screen.height, `${self.window.outerHeight}/${self.screen.height}`);
   rule("screen portrait", self.screen.height > self.screen.width);
   rule("DPR >= 2", self.window.devicePixelRatio >= 2, String(self.window.devicePixelRatio));
-  const winFonts = (self.fonts || []).filter(f => !["Roboto", "Noto Serif", "Droid Sans Mono", "Twemoji Mozilla"].includes(f));
+  const winFonts = (self.fonts || []).filter(f => !["Roboto", "Noto Serif", "Droid Sans Mono", "Twemoji Mozilla", "Noto Color Emoji", "Noto Sans CJK KR", "Noto Serif CJK JP"].includes(f));
   rule("no desktop fonts visible", winFonts.length === 0, winFonts.join(", "));
   rule("speechSynthesis API present, no Windows voices", self.speechVoices === 0, String(self.speechVoices));
   rule("CSS system font is Roboto (not Segoe UI)", /Roboto/.test(self.systemFont || "") && !/Segoe/.test(self.systemFont || ""), self.systemFont);
   rule("Roboto visible", (self.fonts || []).includes("Roboto"));
+  rule("Android Noto names visible (emoji, CJK)", ["Noto Color Emoji", "Noto Sans CJK KR", "Noto Serif CJK JP"].every(f => (self.fonts || []).includes(f)), (self.fonts || []).join(", "));
   const r = self.webgl?.unmaskedRenderer || "";
   rule("WebGL renderer is a phone GPU", /Adreno|Mali|PowerVR|Xclipse/.test(r), r);
   rule("WebGL renderer has no Direct3D", !/Direct3D|D3D11|ANGLE/.test(r), r);
@@ -98,10 +99,13 @@ if (mobile) {
   rule("speechSynthesis API present", typeof self.speechVoices === "number", String(self.speechVoices));
   rule("CSS system font is Segoe UI (Windows)", /Segoe UI/.test(self.systemFont || ""), self.systemFont);
   rule("Roboto hidden on desktop", !(self.fonts || []).includes("Roboto"));
+  rule("Android-only fonts hidden on desktop", !["Noto Serif", "Droid Sans Mono"].some(f => (self.fonts || []).includes(f)));
   const r = self.webgl?.unmaskedRenderer || "";
   rule("WebGL renderer Windows ANGLE D3D11", /ANGLE \(.*Direct3D11/.test(r), r);
   rule("WebGL renderer not Mesa/LLVM/OpenGL", !/Mesa|LLVM|OpenGL|llvmpipe|SwiftShader/.test(r), r);
 }
+
+if (typeof self.cjkEm === "number") rule("CJK renders (no tofu)", self.cjkEm > 0.9 && self.cjkEm < 1.1, String(self.cjkEm));
 
 // --- noise ----------------------------------------------------------------
 if (typeof self.canvas === "object") {

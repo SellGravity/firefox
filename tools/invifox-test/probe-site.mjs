@@ -15,7 +15,10 @@ const c = cases.find(x => x.name === opts.case);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "invifox-probe-"));
 const port = 9600 + Math.floor(Math.random() * 300);
 const args = c.args.map(a => (a === "PROFILE_DIR" ? dir : a.startsWith("--remote-debugging-port=") ? `--remote-debugging-port=${port}` : a));
-const child = spawn(opts.exe, args, { stdio: ["ignore", "pipe", "pipe"] });
+// --drop a,b: remove launcher switches by name prefix (one-flag experiments).
+const drops = opts.drop ? String(opts.drop).split(",") : [];
+const finalArgs = args.filter(a => !drops.some(d => a.startsWith("--" + d)));
+const child = spawn(opts.exe, finalArgs, { stdio: ["ignore", "pipe", "pipe"] });
 const ws = await new Promise((res, rej) => {
   const t = setTimeout(() => rej(new Error("no bidi")), 60000);
   const on = b => { const m = /WebDriver BiDi listening on (ws:\/\/\S+)/.exec(String(b)); if (m) { clearTimeout(t); res(m[1]); } };
@@ -24,6 +27,8 @@ const ws = await new Promise((res, rej) => {
 const browser = await puppeteer.connect({ browserWSEndpoint: `${ws}/session`, protocol: "webDriverBiDi", defaultViewport: null });
 try {
   const page = await browser.newPage();
+  // Optional experiment: a script to run before the page (e.g. add FontFaces).
+  if (opts.preload) await page.evaluateOnNewDocument(fs.readFileSync(opts.preload, "utf8"));
   await page.goto(opts.url, { waitUntil: "domcontentloaded", timeout: 90000 });
   await new Promise(r => setTimeout(r, Number(opts.wait || 15000)));
   if (opts.click) {
