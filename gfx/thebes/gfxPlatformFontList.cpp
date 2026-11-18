@@ -37,6 +37,7 @@
 #include "mozilla/intl/LocaleService.h"
 #include "mozilla/intl/OSPreferences.h"
 #include "mozilla/ipc/FileDescriptorUtils.h"
+#include "nsCharSeparatedTokenizer.h"
 #include "nsCRT.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
@@ -649,7 +650,7 @@ static bool SGIsFontHidden(const nsACString& aLowerName) {
   for (const char* optional : kSGOptionalFonts) {
     if (aLowerName.Equals(optional)) {
       mozilla::HashNumber h =
-          mozilla::AddToHash(seed, mozilla::HashString(optional));
+          mozilla::AddToHash(seed, mozilla::HashString(optional, strlen(optional)));
       h ^= h >> 16;
       h *= 0x7feb352dU;
       h ^= h >> 15;

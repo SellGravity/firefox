@@ -15,6 +15,8 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/StaticPtr.h"
 #include "gfxPlatform.h"
+#include "mozilla/Span.h"
+#include "nsCharSeparatedTokenizer.h"
 #include "nsEscape.h"
 #include "nsIFile.h"
 #include "nsReadableUtils.h"
@@ -153,7 +155,7 @@ bool IsSafeTimeZoneId(const nsACString& aTz) {
   if (aTz.IsEmpty() || aTz.Length() > 64) {
     return false;
   }
-  for (char c : aTz) {
+  for (char c : Span(aTz.BeginReading(), aTz.Length())) {
     if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
           (c >= '0' && c <= '9') || c == '/' || c == '_' || c == '-' ||
           c == '+')) {
@@ -203,7 +205,7 @@ bool ParseUint(const nsACString& aStr, uint64_t& aOut) {
     return false;
   }
   uint64_t v = 0;
-  for (char c : aStr) {
+  for (char c : Span(aStr.BeginReading(), aStr.Length())) {
     if (c < '0' || c > '9') {
       return false;
     }
@@ -340,8 +342,8 @@ nsCString AcceptLanguagesFor(const nsACString& aLang) {
 
 uint32_t DeriveSeed(const nsAString& aProfilePath, const char* aSalt) {
   NS_ConvertUTF16toUTF8 path(aProfilePath);
-  HashNumber h = HashString(path.get());
-  h = AddToHash(h, HashString(aSalt));
+  HashNumber h = HashString(path.get(), path.Length());
+  h = AddToHash(h, HashString(aSalt, strlen(aSalt)));
   return h ? h : 1;  // 0 means "off" for consumers
 }
 
@@ -810,7 +812,7 @@ void ApplyLaunchConfig(nsIFile* aProfileDir) {
   // one blank entry per available kind) instead of claiming no devices.
   if (const nsCString* m = FindArg("media-device-count")) {
     bool allZero = true;
-    for (char ch : *m) {
+    for (char ch : Span(m->BeginReading(), m->Length())) {
       if (ch >= '1' && ch <= '9') {
         allZero = false;
       }

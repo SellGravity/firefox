@@ -87,12 +87,14 @@ class nsScreen : public mozilla::DOMEventTargetHelper {
 
   bool IsScreen() const override { return true; }
 
+  // SellGravity antidetect: screen size from the launcher (sg.fp.screen.*).
+  // Also used by window outer size / CSS device-size code.
+  static mozilla::Maybe<mozilla::CSSIntRect> SGSpoofedScreenRect(bool aAvail);
+
  protected:
   nsDeviceContext* GetDeviceContext() const;
   mozilla::CSSIntRect GetRect();
   mozilla::CSSIntRect GetAvailRect();
-  // SellGravity antidetect: screen size from the launcher (sg.fp.screen.*).
-  static mozilla::Maybe<mozilla::CSSIntRect> SGSpoofedScreenRect(bool aAvail);
   mozilla::CSSIntRect GetTopWindowInnerRectForRFP();
   bool IsFullscreen() const;
 

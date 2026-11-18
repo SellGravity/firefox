@@ -25,6 +25,7 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/WindowContext.h"
 #include "mozilla/intl/Localization.h"
+#include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
 #include "nsGlobalWindowInner.h"
 #include "nsINamed.h"
