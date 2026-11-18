@@ -475,9 +475,14 @@ void ApplyLocation(const nsACString& aMode) {
           lat, lng, acc);
       LockCString("geo.provider.network.url", url);
     }
+  } else {
+    // "ip" mode (or no coordinates): our builds carry no Google location key,
+    // so use an MLS-compatible service. With Wi-Fi scanning off it locates by
+    // request IP - and the request goes through the profile proxy, so the
+    // answer is the proxy location.
+    LockCString("geo.provider.network.url",
+                "https://api.beacondb.net/v1/geolocate"_ns);
   }
-  // "ip" mode: TODO(P5) - the launcher should resolve the proxy IP to
-  // coordinates (it already knows the proxy) and pass explicit lat/lng.
   LockCString("sg.fp.geo.mode", aMode);
 }
 
