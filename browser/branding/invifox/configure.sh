@@ -4,5 +4,3 @@
 
 MOZ_APP_DISPLAYNAME=InviFox
 MOZ_MACBUNDLE_ID=invifox
-# The UA must say "Firefox/160.0", never "InviFox/160.0.1".
-MOZ_APP_UA_NAME=Firefox

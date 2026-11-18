@@ -242,7 +242,9 @@ LOCAL_INCLUDES += [
     "/netwerk/url-classifier",
 ]
 
-DEFINES["MOZ_APP_UA_NAME"] = f'"{CONFIG["MOZ_APP_UA_NAME"]}"'
+# SellGravity (InviFox): the UA app token must be "Firefox/160.0", never
+# the branded "InviFox/160.0.1" (configure only takes this from the project).
+DEFINES["MOZ_APP_UA_NAME"] = f'"{CONFIG["MOZ_APP_UA_NAME"] or "Firefox"}"'
 
 if CONFIG["MOZ_AUTH_EXTENSION"]:
     LOCAL_INCLUDES += [

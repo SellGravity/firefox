@@ -661,7 +661,9 @@ static bool SGIsFontHidden(const nsACString& aLowerName) {
 }
 
 void gfxPlatformFontList::ApplyWhitelist() {
-  if (StaticPrefs::sg_fp_enabled()) {
+  // SellGravity antidetect: SGIsFontHidden() decides (bundled Roboto, launcher
+  // exclusions, seeded optional fonts).
+  {
     AutoTArray<nsCString, 16> hidden;
     for (const auto& entry : mFontFamilies) {
       nsAutoCString name(entry.GetKey());
@@ -710,7 +712,7 @@ void gfxPlatformFontList::ApplyWhitelist() {
 void gfxPlatformFontList::ApplyWhitelist(
     nsTArray<fontlist::Family::InitData>& aFamilies) {
   mLock.AssertCurrentThreadIn();
-  if (StaticPrefs::sg_fp_enabled()) {
+  {
     aFamilies.RemoveElementsBy([](const fontlist::Family::InitData& f) {
       return SGIsFontHidden(f.mKey);
     });
