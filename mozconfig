@@ -1,0 +1,23 @@
+# SellGravity antidetect Firefox — Windows release build
+ac_add_options --enable-application=browser
+mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/obj-sg-release
+
+ac_add_options --enable-release
+ac_add_options --enable-optimize
+ac_add_options --disable-debug
+ac_add_options --enable-lto=cross
+ac_add_options --target=x86_64-pc-windows-msvc
+
+# Không dùng branding official của Mozilla (trademark)
+ac_add_options --with-branding=browser/branding/unofficial
+
+# Giảm dấu vết/kết nối về Mozilla
+ac_add_options --disable-crashreporter
+ac_add_options --disable-updater
+ac_add_options --disable-maintenance-service
+ac_add_options --disable-default-browser-agent
+ac_add_options --disable-tests
+mk_add_options MOZ_TELEMETRY_REPORTING=
+
+# Widevine/EME giống Firefox thật (thiếu sẽ bị nhận diện, xem A4 bên Chromium)
+ac_add_options --enable-eme=widevine
