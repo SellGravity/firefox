@@ -91,6 +91,8 @@ class nsScreen : public mozilla::DOMEventTargetHelper {
   nsDeviceContext* GetDeviceContext() const;
   mozilla::CSSIntRect GetRect();
   mozilla::CSSIntRect GetAvailRect();
+  // SellGravity antidetect: screen size from the launcher (sg.fp.screen.*).
+  static mozilla::Maybe<mozilla::CSSIntRect> SGSpoofedScreenRect(bool aAvail);
   mozilla::CSSIntRect GetTopWindowInnerRectForRFP();
   bool IsFullscreen() const;
 

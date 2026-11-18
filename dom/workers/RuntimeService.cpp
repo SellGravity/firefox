@@ -27,6 +27,7 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/ScopeExit.h"
 #include "mozilla/StaticPrefs_javascript.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/dom/AtomList.h"
 #include "mozilla/dom/BindingUtils.h"
@@ -2101,6 +2102,11 @@ void RuntimeService::MemoryPressureAllWorkers() {
 
 uint32_t RuntimeService::ClampedHardwareConcurrency(bool aRFPHardcoded,
                                                     bool aRFPTiered) const {
+  // SellGravity antidetect: launcher --hardware-concurrency (also workers).
+  if (uint32_t sgCores = StaticPrefs::sg_fp_hardware_concurrency()) {
+    return sgCores;
+  }
+
   // The Firefox Hardware Report says 34% of Firefox users have exactly 4 cores.
   // When the resistFingerprinting pref is set, we want to blend into the crowd
   // so spoof navigator.hardwareConcurrency = 4 to reduce user uniqueness. On

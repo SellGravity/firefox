@@ -14,6 +14,7 @@ UNIFIED_SOURCES += [
     "nsRFPService.cpp",
     "nsRFPTargetSetIDL.cpp",
     "RelativeTimeline.cpp",
+    "SGLaunchConfig.cpp",
 ]
 # Because nsUserCharacteristics doesn't `use namespace mozilla` (because we're going to wind
 # up with a million includes on this file and pollution will get confusing), unified build
@@ -44,6 +45,7 @@ EXPORTS += [
 ]
 EXPORTS.mozilla += [
     "nsRFPIPCUtils.h",
+    "SGLaunchConfig.h",
     "RelativeTimeline.h",
 ]
 EXPORTS.mozilla.gtest += ["nsUserCharacteristics.h"]

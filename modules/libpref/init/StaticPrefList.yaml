@@ -19855,6 +19855,142 @@
 
 
 #---------------------------------------------------------------------------
+# Prefs starting with "sg." (SellGravity antidetect)
+# Written at startup by toolkit/components/resistfingerprinting/
+# SGLaunchConfig.cpp from the InviBrowser launch switches (default branch,
+# locked). Synced to content processes like any other pref.
+#---------------------------------------------------------------------------
+- name: sg.fp.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: sg.fp.hardware_concurrency
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
+- name: sg.fp.timezone
+  type: DataMutexString
+  value: ""
+  mirror: always
+
+- name: sg.fp.screen.width
+  type: RelaxedAtomicInt32
+  value: 0
+  mirror: always
+
+- name: sg.fp.screen.height
+  type: RelaxedAtomicInt32
+  value: 0
+  mirror: always
+
+- name: sg.fp.window.x
+  type: RelaxedAtomicInt32
+  value: 0
+  mirror: always
+
+- name: sg.fp.window.y
+  type: RelaxedAtomicInt32
+  value: 0
+  mirror: always
+
+- name: sg.fp.webgl.renderer
+  type: DataMutexString
+  value: ""
+  mirror: always
+
+- name: sg.fp.webgpu.vendor
+  type: DataMutexString
+  value: ""
+  mirror: always
+
+- name: sg.fp.webgpu.renderer
+  type: DataMutexString
+  value: ""
+  mirror: always
+
+- name: sg.fp.canvas_noise
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: sg.fp.audio_noise
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: sg.fp.fonts_noise
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: sg.fp.rects_noise
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: sg.fp.webgl_noise
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: sg.fp.seed.canvas
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
+- name: sg.fp.seed.audio
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
+- name: sg.fp.seed.fonts
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
+- name: sg.fp.seed.rects
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
+- name: sg.fp.fonts.exclude
+  type: DataMutexString
+  value: ""
+  mirror: always
+
+- name: sg.fp.media_device_count
+  type: DataMutexString
+  value: ""
+  mirror: always
+
+- name: sg.fp.webrtc.mode
+  type: DataMutexString
+  value: ""
+  mirror: always
+
+- name: sg.fp.webrtc.public_ip
+  type: DataMutexString
+  value: ""
+  mirror: always
+
+- name: sg.fp.geo.mode
+  type: DataMutexString
+  value: ""
+  mirror: always
+
+- name: sg.ui.taskbar_title
+  type: String
+  value: ""
+  mirror: never
+
+- name: sg.ui.profile_name
+  type: String
+  value: ""
+  mirror: never
+
+#---------------------------------------------------------------------------
 # Prefs starting with "signon."
 #---------------------------------------------------------------------------
 - name: signon.usernameOnlyForm.enabled

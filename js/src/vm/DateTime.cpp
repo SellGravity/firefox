@@ -807,6 +807,22 @@ static bool ReadTimeZoneLink(std::string_view tz,
 
 void js::DateTimeInfo::internalResyncICUDefaultTimeZone() {
 #if JS_HAS_INTL_API
+  // SellGravity antidetect: the launcher's --timezone switch is exported by
+  // the parent process as MOZ_SG_TIMEZONE (see SGLaunchConfig.cpp) and
+  // inherited by every child process. It wins over the host time zone, also
+  // when the OS time zone changes later (ResetTimeZone lands here again).
+  if (const char* sgTz = std::getenv("MOZ_SG_TIMEZONE")) {
+    std::string_view tz(sgTz);
+    if (!tz.empty()) {
+      auto result = mozilla::intl::TimeZone::SetDefaultTimeZone(
+          mozilla::Span(tz.data(), tz.length()));
+      if (result.isOk()) {
+        return;
+      }
+      // Invalid id: fall through to the normal host time zone logic.
+    }
+  }
+
   if (const char* tzenv = std::getenv("TZ")) {
     std::string_view tz(tzenv);
 

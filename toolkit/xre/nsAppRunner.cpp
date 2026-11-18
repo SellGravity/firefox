@@ -16,6 +16,7 @@
 #include "mozilla/ChaosMode.h"
 #include "mozilla/HelperMacros.h"
 #include "mozilla/CmdLineAndEnvUtils.h"
+#include "mozilla/SGLaunchConfig.h"
 #include "mozilla/IOInterposer.h"
 #include "mozilla/ipc/UtilityProcessChild.h"
 #include "mozilla/Likely.h"
@@ -4933,6 +4934,10 @@ int XREMain::XRE_mainInit(bool* aExitFlag) {
 
   gRestartArgv[gRestartArgc] = nullptr;
 
+  // SellGravity antidetect: take the launcher fingerprint switches out of
+  // argv (they stay in gRestartArgv so a restart keeps the same profile).
+  mozilla::sgfp::CollectLaunchArgs(gArgc, gArgv);
+
   Maybe<bool> safeModeRequested = IsSafeModeRequested(gArgc, gArgv);
   if (!safeModeRequested) {
     return 1;
@@ -6313,6 +6318,10 @@ nsresult XREMain::XRE_mainRun() {
     NS_ENSURE_TRUE(appStartup, NS_ERROR_FAILURE);
 
     mDirProvider.DoStartup();
+
+    // SellGravity antidetect: profile prefs are loaded, apply launch config
+    // before any window or content process exists.
+    mozilla::sgfp::ApplyLaunchConfig(mProfD);
 
 #ifdef XP_WIN
     // It needs to be called on the main thread because it has to use

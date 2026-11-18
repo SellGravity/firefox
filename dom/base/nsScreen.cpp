@@ -8,6 +8,8 @@
 #include "mozilla/dom/BrowsingContextBinding.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/DocumentInlines.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/widget/ScreenManager.h"
 #include "nsCOMPtr.h"
 #include "nsDeviceContext.h"
@@ -92,11 +94,38 @@ CSSIntRect nsScreen::GetRect() {
     }
   }
 
+  // SellGravity antidetect: launcher screen size.
+  if (Maybe<CSSIntRect> sg = SGSpoofedScreenRect(/* aAvail = */ false)) {
+    return *sg;
+  }
+
   nsDeviceContext* context = GetDeviceContext();
   if (NS_WARN_IF(!context)) {
     return {};
   }
   return CSSIntRect::FromAppUnitsRounded(context->GetRect());
+}
+
+/* static */
+Maybe<CSSIntRect> nsScreen::SGSpoofedScreenRect(bool aAvail) {
+  const int32_t w = StaticPrefs::sg_fp_screen_width();
+  const int32_t h = StaticPrefs::sg_fp_screen_height();
+  if (w <= 0 || h <= 0) {
+    return Nothing();
+  }
+  if (!aAvail) {
+    return Some(CSSIntRect(0, 0, w, h));
+  }
+  // availHeight excludes the OS taskbar / menu bar, like a real desktop.
+  nsAutoCString platform;
+  Preferences::GetCString("general.platform.override", platform);
+  int32_t reserved = 40;  // Windows taskbar at 100% scale
+  if (platform.EqualsLiteral("MacIntel")) {
+    reserved = 25;  // macOS menu bar (Dock auto-hidden)
+  } else if (StringBeginsWith(platform, "Linux"_ns)) {
+    reserved = 0;
+  }
+  return Some(CSSIntRect(0, 0, w, std::max(1, h - reserved)));
 }
 
 CSSIntRect nsScreen::GetAvailRect() {
@@ -123,6 +152,11 @@ CSSIntRect nsScreen::GetAvailRect() {
         return {{}, *size};
       }
     }
+  }
+
+  // SellGravity antidetect: launcher screen size.
+  if (Maybe<CSSIntRect> sg = SGSpoofedScreenRect(/* aAvail = */ true)) {
+    return *sg;
   }
 
   if (ShouldResistFingerprinting(RFPTarget::ScreenAvailToResolution)) {

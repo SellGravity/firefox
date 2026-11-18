@@ -90,3 +90,44 @@ Chromium dùng switch dòng lệnh và chép từng switch sang renderer. Gecko 
 - [ ] P6: launcher InviBrowser hỗ trợ engine Firefox (sinh `user.js`)
 - [ ] P7: kiểm thử BrowserScan, CreepJS, fingerprint.com, pixelscan; so sánh với Firefox 160 thật trên cùng máy
 - [ ] Quy trình rebase mỗi bản release (script `git rebase --onto FIREFOX_<N+1>_0_RELEASE`)
+
+## 6. Trạng thái P1 (đã code, CHƯA build/test được vì máy chưa có toolchain)
+
+**Hợp đồng với launcher:** Firefox nhận **đúng các switch** mà `gravbrowser/electron/modules/chromium/chromium-flags.builder.ts` đang sinh ra. Gecko vốn hỗ trợ cú pháp `--flag=value` (`toolkit/xre/CmdLineAndEnvUtils.h`).
+
+Luồng xử lý:
+
+1. `toolkit/xre/nsAppRunner.cpp`: hàm `CollectLaunchArgs()` chạy sau khi lưu `gRestartArgv`.
+   - Gỡ các switch ra khỏi argv. Bước này bắt buộc: nếu để lại, `--foo=bar` sẽ bị tách đôi và `bar` bị mở như một URL.
+   - Đặt biến môi trường `MOZ_SG_TIMEZONE` trước khi JS chạy. Mọi child process sẽ kế thừa biến này.
+2. `ApplyLaunchConfig()` chạy ngay sau `DoStartup()`, tức là lúc prefs của profile đã nạp và chưa có cửa sổ hay content process nào.
+   - Ghi các pref vào default branch rồi **lock**. Nhờ vậy prefs.js không giữ lại gì và trang web, add-on hay about:config đều không sửa được.
+3. Content process đọc giá trị qua `StaticPrefs::sg_fp_*()`.
+
+| Switch | Gecko | Trạng thái |
+|---|---|---|
+| `--user-agent` | Ép về UA Firefox đúng version engine (giữ OS), sau đó đặt `general.useragent/platform/oscpu/appversion.override` | xong |
+| `--timezone` | `MOZ_SG_TIMEZONE` → `js/src/vm/DateTime.cpp` gọi `intl::TimeZone::SetDefaultTimeZone` | xong |
+| `--lang` / `--accept-lang` | `intl.accept_languages` | xong (chưa có locale của `Intl`) |
+| `--hardware-concurrency` | `RuntimeService::ClampedHardwareConcurrency` (áp cho cả window và worker) | xong |
+| `--screen-size` (mới) / `--window-size` | `nsScreen::GetRect/GetAvailRect` (avail trừ thanh taskbar) | xong |
+| `--webgl-vendor/-renderer` | `webgl.override-unmasked-*` (sẵn có), chuỗi vẫn đi qua `SanitizeRenderer` như Firefox thật | xong; params/extensions để P3 |
+| `--canvas/audio/fonts/rects/webgl-noise`, seed | `sg.fp.*_noise`, `sg.fp.seed.*`. Thiếu seed thì lấy hash(profile dir + salt), giống Chromium | mới có pref; thuật toán để P4 |
+| `--proxy-server` | `network.proxy.*`, `socks_remote_dns`, `failover_direct=false`. User/pass chỉ giữ trong parent | xong (phần auth để P5) |
+| `--webrtc-mode` | `media.peerconnection.ice.*` | cơ bản; rewrite srflx để P5 |
+| `--location-mode` | `permissions.default.geo` + `geo.provider.network.url` (data: JSON); tắt quét Wi-Fi | xong (mode `ip` để P5) |
+| `--media-device-count`, `--webgpu-*`, `--font-exclusion-list` | mới có pref | P3–P5 |
+| `navigator.webdriver` | luôn `false` khi `sg.fp.enabled` (remote agent sẽ bật nó lên nếu không chặn) | xong |
+| `--device-memory` | bỏ qua: Firefox không có API này | đúng hành vi |
+| `--headless=new` | chuyển thành `MOZ_HEADLESS=1` | xong |
+| các switch chỉ Chromium có (`--disable-features`…) | nuốt bỏ | xong |
+
+## 7. Việc phía launcher (gravbrowser) để chạy engine Firefox
+
+- [ ] Thêm loại engine `firefox` vào profile và runtime, tải bản build từ R2 giống `browser-runtimes`.
+- [ ] Khi spawn Firefox: dùng `-profile <dir>` thay cho `--user-data-dir`, thêm `-no-remote`; bỏ `--remote-debugging-port` nếu không cần tự động hoá.
+- [ ] **Tự động hoá:** Firefox **không còn CDP** (đã gỡ khỏi Gecko). `cdp.service.ts` phải có thêm nhánh WebDriver BiDi, hoặc dùng Playwright/Puppeteer qua BiDi. Đây là phần việc lớn nhất phía launcher.
+- [ ] Sinh UA Firefox (`shared/utils/user-agent.ts`). Phía engine cũng tự ép về đúng version.
+- [ ] Truyền `--screen-size=W,H` lấy từ `fp.screen` để màn hình giả không bị lấy theo kích thước ô xếp cửa sổ.
+- [ ] Mode vị trí `ip`: launcher tự đổi IP proxy ra toạ độ rồi truyền `--location-mode=<perm>,lat,lng`.
+- [ ] Đặt kích thước/vị trí cửa sổ thật (P2: đọc `sg.fp.window.*` lúc mở cửa sổ đầu tiên, trong `browser/`).

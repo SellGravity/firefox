@@ -42,6 +42,7 @@
 #include "mozilla/StaticPrefs_network.h"
 #include "mozilla/StaticPrefs_pdfjs.h"
 #include "mozilla/StaticPrefs_privacy.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/StorageAccess.h"
 #include "mozilla/dom/AudioSession.h"
@@ -2376,6 +2377,13 @@ dom::ModelContext* Navigator::ModelContext() {
 
 /* static */
 bool Navigator::Webdriver() {
+  // SellGravity antidetect: the launcher drives the browser through the
+  // remote agent, which would otherwise flip this to true (Chromium fork
+  // parity: always false for launcher profiles).
+  if (StaticPrefs::sg_fp_enabled()) {
+    return false;
+  }
+
 #ifdef ENABLE_WEBDRIVER
   nsCOMPtr<nsIMarionette> marionette = do_GetService(NS_MARIONETTE_CONTRACTID);
   if (marionette) {
