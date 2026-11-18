@@ -668,6 +668,21 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   int16_t Orientation(mozilla::dom::CallerType aCallerType);
   // SellGravity antidetect: window.orientation exposure (Android / persona).
   static bool IsWindowOrientationEnabled(JSContext* aCx, JSObject* aObj);
+#if !defined(MOZ_WIDGET_ANDROID)
+  // On Android these come from EventNameList.inc. Elsewhere the persona's
+  // "orientationchange" is a plain custom event, so a generic handler works.
+  mozilla::dom::EventHandlerNonNull* GetOnorientationchange() {
+    mozilla::EventListenerManager* elm = GetExistingListenerManager();
+    return elm ? elm->GetEventHandler(nsGkAtoms::onorientationchange)
+               : nullptr;
+  }
+  void SetOnorientationchange(mozilla::dom::EventHandlerNonNull* aHandler) {
+    mozilla::EventListenerManager* elm = GetOrCreateListenerManager();
+    if (elm) {
+      elm->SetEventHandler(nsGkAtoms::onorientationchange, aHandler);
+    }
+  }
+#endif
 
   already_AddRefed<mozilla::dom::Console> GetConsole(JSContext* aCx,
                                                      mozilla::ErrorResult& aRv);
