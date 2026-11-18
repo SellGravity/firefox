@@ -4169,6 +4169,13 @@ const gRemoteControl = {
       return;
     }
 
+    // SellGravity antidetect (InviFox): launcher-driven profiles look like a
+    // normal browser window (no robot icon / striped URL bar).
+    if (Services.prefs.getBoolPref("sg.fp.enabled", false)) {
+      document.documentElement.removeAttribute("remotecontrol");
+      return;
+    }
+
     const mainWindow = document.documentElement;
     const remoteControlComponent = this.getRemoteControlComponent();
     if (remoteControlComponent) {

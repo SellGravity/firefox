@@ -575,6 +575,10 @@ void ApplyHardening() {
   LockBool("privacy.fingerprintingProtection", false);
   LockBool("privacy.resistFingerprinting.pbmode", false);
   LockBool("privacy.fingerprintingProtection.pbmode", false);
+  // The remote agent (launcher automation) would otherwise apply its
+  // "recommended" automation prefs, some of them web-visible (popup
+  // blocker off, ...).
+  LockBool("remote.prefs.recommended", false);
 }
 
 }  // namespace
