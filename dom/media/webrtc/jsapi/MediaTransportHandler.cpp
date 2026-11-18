@@ -19,6 +19,7 @@
 #include "mozilla/IceServerParser.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/StaticPrefs_network.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/dom/RTCConfigurationBinding.h"
 
 // Logging stuff
@@ -1682,6 +1683,28 @@ static void ToRTCIceCandidateStats(
       // If `domain_name` is not set, this will be an IP address.
       cand.mAddress.Construct(
           NS_ConvertASCIItoUTF16(candidate.cand_addr.host.c_str()));
+    }
+
+    // SellGravity antidetect (InviFox): --webrtc-mode=replace. Keep stats in
+    // line with the rewritten candidates/SDP: non-host local addresses show
+    // the proxy public IP.
+    if (candidateType == dom::RTCStatsType::Local_candidate &&
+        candidate.type != NrIceCandidate::ICE_HOST &&
+        candidate.domain_name.empty() && cand.mAddress.WasPassed() &&
+        !cand.mAddress.Value().IsVoid()) {
+      nsAutoCString sgIp;
+      {
+        const auto mode = StaticPrefs::sg_fp_webrtc_mode();
+        if (mode->EqualsLiteral("replace")) {
+          const auto ip = StaticPrefs::sg_fp_webrtc_public_ip();
+          sgIp = *ip;
+        }
+      }
+      if (!sgIp.IsEmpty() &&
+          (sgIp.FindChar(':') != kNotFound) ==
+              (candidate.cand_addr.host.find(':') != std::string::npos)) {
+        cand.mAddress.Value() = NS_ConvertASCIItoUTF16(sgIp);
+      }
     }
 
     cand.mPort.Construct(candidate.cand_addr.port);

@@ -26,6 +26,7 @@
 #include "mozilla/Services.h"
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/StaticPrefs_privacy.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/StoragePrincipalHelper.h"
 #include "mozilla/dom/Client.h"
 #include "mozilla/dom/ClientIPCTypes.h"
@@ -723,7 +724,10 @@ nsresult ServiceWorkerPrivate::Initialize() {
       !nsContentUtils::ETPSaysShouldNotResistFingerprinting(cookieJarSettings,
                                                             isPBM);
 
-  if (shouldResistFingerprinting && NS_SUCCEEDED(rv) && firstPartyURI) {
+  // SellGravity antidetect (InviFox): profile canvas noise also applies to
+  // service workers (OffscreenCanvas), keyed like documents.
+  if ((shouldResistFingerprinting || StaticPrefs::sg_fp_canvas_noise()) &&
+      NS_SUCCEEDED(rv) && firstPartyURI) {
     auto rfpKey = nsRFPService::GenerateKeyForServiceWorker(
         firstPartyURI, principal, foreignByAncestorContext);
     if (rfpKey.isSome()) {

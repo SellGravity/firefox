@@ -45,8 +45,8 @@ EXPORTS += [
 ]
 EXPORTS.mozilla += [
     "nsRFPIPCUtils.h",
-    "SGLaunchConfig.h",
     "RelativeTimeline.h",
+    "SGLaunchConfig.h",
 ]
 EXPORTS.mozilla.gtest += ["nsUserCharacteristics.h"]
 

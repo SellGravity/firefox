@@ -8,6 +8,8 @@ ac_add_options --disable-debug
 # Bật LTO khi build bản phát hành (rất lâu, tốn RAM):
 # ac_add_options --enable-lto=cross
 ac_add_options --target=x86_64-pc-windows-msvc
+# Tự tải clang/cbindgen/nasm/node... từ Taskcluster (trừ "vs": dùng bản cài sẵn)
+ac_add_options --enable-bootstrap
 
 # Không dùng branding official của Mozilla (trademark)
 ac_add_options --with-branding=browser/branding/invifox
@@ -24,3 +26,7 @@ mk_add_options MOZ_TELEMETRY_REPORTING=
 
 # Widevine/EME giống Firefox thật (thiếu sẽ bị nhận diện, xem A4 bên Chromium)
 ac_add_options --enable-eme=widevine
+
+# Dùng VS BuildTools + Windows SDK đã cài trên máy (bootstrap "vs" từ CDN Microsoft hay treo)
+export VC_PATH="C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/VC/Tools/MSVC/14.51.36231"
+export WINDOWSSDKDIR="C:/Program Files (x86)/Windows Kits/10"
