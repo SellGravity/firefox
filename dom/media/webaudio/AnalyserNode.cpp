@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/AnalyserNode.h"
+#include "SGAudioNoise.h"
 
 #include "AudioNodeEngine.h"
 #include "AudioNodeTrack.h"
@@ -213,13 +214,16 @@ void AnalyserNode::GetFloatFrequencyData(const Float32Array& aArray) {
     // Might fail to allocate memory
     return;
   }
+  const uint32_t sgSeed = sgaudio::Seed();  // SellGravity antidetect
 
   aArray.ProcessData([&](const Span<float>& aData, JS::AutoCheckCannotGC&&) {
     size_t length = std::min(size_t(aData.Length()), mOutputBuffer.Length());
 
     for (size_t i = 0; i < length; ++i) {
-      aData[i] = WebAudioUtils::ConvertLinearToDecibels(
-          mOutputBuffer[i], -std::numeric_limits<float>::infinity());
+      aData[i] = sgaudio::PerturbDecibels(
+          sgSeed, uint32_t(i),
+          WebAudioUtils::ConvertLinearToDecibels(
+              mOutputBuffer[i], -std::numeric_limits<float>::infinity()));
     }
   });
 }

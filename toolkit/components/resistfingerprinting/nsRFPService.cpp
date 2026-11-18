@@ -38,6 +38,7 @@
 #include "mozilla/Sprintf.h"
 #include "mozilla/StaticPrefs_javascript.h"
 #include "mozilla/StaticPrefs_privacy.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/SSE.h"
 #include "mozilla/TextEvents.h"
@@ -1394,7 +1395,47 @@ void nsRFPService::ClearBrowsingSessionKey(
 }
 
 // static
+// SellGravity antidetect: a key that is stable for the whole profile (seeded
+// by the launcher / profile path), identical on every site - like the real
+// rendering quirks of one physical device. Mozilla's per-canvas, content-
+// hashed noise is then derived from it (GenerateCanvasKeyFromImageData).
+static Maybe<nsTArray<uint8_t>> SGProfileRandomizationKey() {
+  if (!StaticPrefs::sg_fp_canvas_noise()) {
+    return Nothing();
+  }
+  const uint32_t seed = StaticPrefs::sg_fp_seed_canvas();
+  if (!seed) {
+    return Nothing();
+  }
+  nsAutoCString seedStr;
+  seedStr.AppendInt(seed);
+  HMAC hmac;
+  constexpr auto kLabel = "invifox-canvas-v1"_ns;
+  nsresult rv = hmac.Begin(
+      SEC_OID_SHA256,
+      Span(reinterpret_cast<const uint8_t*>(kLabel.get()), kLabel.Length()));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return Nothing();
+  }
+  rv = hmac.Update(reinterpret_cast<const uint8_t*>(seedStr.get()),
+                   seedStr.Length());
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return Nothing();
+  }
+  Maybe<nsTArray<uint8_t>> key;
+  key.emplace();
+  rv = hmac.End(key.ref());
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return Nothing();
+  }
+  return key;
+}
+
 Maybe<nsTArray<uint8_t>> nsRFPService::GenerateKey(nsIChannel* aChannel) {
+  if (auto sgKey = SGProfileRandomizationKey()) {
+    return sgKey;
+  }
+
   MOZ_ASSERT(XRE_IsParentProcess());
   MOZ_ASSERT(aChannel);
 
@@ -1489,6 +1530,10 @@ Maybe<nsTArray<uint8_t>> nsRFPService::GenerateKeyForServiceWorker(
     bool aForeignByAncestorContext) {
   MOZ_ASSERT(XRE_IsParentProcess());
   MOZ_ASSERT(aFirstPartyURI);
+
+  if (auto sgKey = SGProfileRandomizationKey()) {
+    return sgKey;
+  }
 
   RefPtr<nsRFPService> service = GetOrCreate();
 

@@ -14,6 +14,7 @@
 #include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/StaticPrefs_privacy.h"
 #include "mozilla/StaticPrefs_webgl.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "mozilla/dom/BrowserChild.h"
 #include "mozilla/dom/ContentList.h"
 #include "mozilla/dom/Document.h"
@@ -382,6 +383,13 @@ ImageExtraction ImageExtractionResult(dom::HTMLCanvasElement* aCanvasElement,
     return ImageExtraction::Placeholder;
   }
 
+  // SellGravity antidetect: profile-seeded canvas noise (--canvas-noise).
+  if (StaticPrefs::sg_fp_canvas_noise() &&
+      GetCanvasExtractDataPermission(aPrincipal) !=
+          nsIPermissionManager::ALLOW_ACTION) {
+    return ImageExtraction::Randomize;
+  }
+
   if (ownerDoc->ShouldResistFingerprinting(
           RFPTarget::EfficientCanvasRandomization) &&
       GetCanvasExtractDataPermission(aPrincipal) !=
@@ -549,6 +557,11 @@ ImageExtraction ImageExtractionResult(dom::OffscreenCanvas* aOffscreenCanvas,
   if (GetCanvasExtractDataPermission(aPrincipal) ==
       nsIPermissionManager::ALLOW_ACTION) {
     return ImageExtraction::Unrestricted;
+  }
+
+  // SellGravity antidetect: profile-seeded canvas noise (--canvas-noise).
+  if (StaticPrefs::sg_fp_canvas_noise()) {
+    return ImageExtraction::Randomize;
   }
 
   if (aOffscreenCanvas->ShouldResistFingerprinting(

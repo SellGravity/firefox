@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "AudioDestinationNode.h"
+#include "SGAudioNoise.h"
 
 #include "AlignmentUtils.h"
 #include "AudibilityMonitor.h"
@@ -151,6 +152,13 @@ class OfflineDestinationNodeEngine final : public AudioNodeEngine {
 
   already_AddRefed<AudioBuffer> CreateAudioBuffer(AudioContext* aContext) {
     MOZ_ASSERT(NS_IsMainThread());
+    // SellGravity antidetect: profile-seeded noise on the rendered result.
+    if (const uint32_t sgSeed = sgaudio::Seed(); sgSeed && mBuffer) {
+      for (uint32_t ch = 0; ch < mBuffer->GetChannels(); ++ch) {
+        sgaudio::PerturbSamples(sgSeed, ch, mBuffer->GetDataForWrite(ch),
+                                mLength);
+      }
+    }
     // Create the input buffer
     ErrorResult rv;
     RefPtr<AudioBuffer> renderedBuffer =
