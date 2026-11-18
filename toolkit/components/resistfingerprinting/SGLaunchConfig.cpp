@@ -523,14 +523,12 @@ void ApplyMobile() {
   LockInt("dom.w3c_touch_events.enabled", 1);
   LockInt("ui.useOverlayScrollbars", 1);
 
-  // Font list like Android. On a real phone "Arial", "Times New Roman",
-  // "Courier New"... are only aliases of the generic families, so a width
-  // probe never sees them as installed. Expose only the Android families
-  // (Roboto ships in <app>/fonts; Noto Serif / Droid Sans Mono are used when
-  // bundled too) and the bundled COLR emoji font: every Windows family,
-  // including Segoe UI Emoji, disappears.
-  LockCString("font.system.whitelist",
-              "Roboto, Noto Serif, Droid Sans Mono, Twemoji Mozilla"_ns);
+  // Font list like Android: pages can name only the Android families (Roboto,
+  // Noto Serif and Droid Sans Mono ship in <app>/fonts, see browser/fonts),
+  // the bundled COLR emoji font and Android's Noto CJK / Noto Color Emoji
+  // names. No font.system.whitelist here: it would also drop the Windows
+  // families from per-character fallback and render CJK/Arabic as tofu. The
+  // name gate lives in gfxPlatformFontList (SGAndroidResolveName).
   // Firefox for Android defaults to sans-serif (Roboto).
   for (const char* lang : {"x-western", "x-unicode", "x-cyrillic", "el"}) {
     auto lockFont = [lang](const char* aPrefix, const nsACString& aValue) {

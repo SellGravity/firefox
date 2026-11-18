@@ -621,10 +621,78 @@ static const char* const kSGOptionalFonts[] = {
     "vladimir script", "wide latin",
 };
 
+// SellGravity antidetect, Android persona. The Windows families stay in the
+// font list so that per-character fallback still renders CJK, Arabic, Thai...
+// (a phone renders every script; tofu boxes would be a tell), but a page can
+// name only the families an Android phone has. Android family names that we do
+// not ship resolve to a present face of the same kind, so name probes (width /
+// measureText) see a phone's font set instead of an empty one.
+static const char* const kSGAndroidFamilies[] = {
+    "roboto", "noto serif", "droid sans mono", "twemoji mozilla"};
+
+struct SGAndroidAlias {
+  const char* mName;
+  const char* mTargets[4];
+};
+static const SGAndroidAlias kSGAndroidAliases[] = {
+    {"noto color emoji", {"twemoji mozilla"}},
+    {"noto sans cjk jp", {"yu gothic", "meiryo", "ms gothic"}},
+    {"noto sans cjk kr", {"malgun gothic", "gulim"}},
+    {"noto sans cjk sc", {"microsoft yahei", "dengxian", "simhei"}},
+    {"noto sans cjk tc", {"microsoft jhenghei", "pmingliu"}},
+    {"noto sans cjk hk", {"microsoft jhenghei", "pmingliu"}},
+    {"noto serif cjk jp", {"yu mincho", "ms mincho", "simsun"}},
+    {"noto serif cjk kr", {"batang", "gungsuh", "simsun"}},
+    {"noto serif cjk sc", {"simsun", "nsimsun"}},
+    {"noto serif cjk tc", {"pmingliu", "mingliu", "simsun"}},
+    {"noto serif cjk hk", {"pmingliu", "mingliu", "simsun"}},
+};
+
+static bool SGAndroidNameGateActive(StyleGenericFontFamily aGeneric) {
+  // Only names a page asks for; CSS generics resolve through the locked
+  // font.name.* prefs, and the parent process (browser UI) is unaffected.
+  return StaticPrefs::sg_fp_mobile() && XRE_IsContentProcess() &&
+         aGeneric == StyleGenericFontFamily::None;
+}
+
+static bool SGIsAndroidFamily(const nsACString& aLowerName) {
+  for (const char* name : kSGAndroidFamilies) {
+    if (aLowerName.Equals(name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Returns false if the page may not name aKey; may rewrite aKey to an alias
+// target accepted by aExists.
+template <typename Exists>
+static bool SGAndroidResolveName(nsACString& aKey, Exists aExists) {
+  if (SGIsAndroidFamily(aKey)) {
+    return true;
+  }
+  for (const auto& alias : kSGAndroidAliases) {
+    if (aKey.Equals(alias.mName)) {
+      for (const char* target : alias.mTargets) {
+        if (target && aExists(nsDependentCString(target))) {
+          aKey.Assign(target);
+          return true;
+        }
+      }
+      return false;
+    }
+  }
+  return false;
+}
+
 static bool SGIsFontHidden(const nsACString& aLowerName) {
-  // Roboto is bundled for the Android persona only; a Windows desktop does
-  // not have it (also without launcher switches, like stock Firefox).
-  if (!StaticPrefs::sg_fp_mobile() && aLowerName.EqualsLiteral("roboto")) {
+  // Roboto, Noto Serif and Droid Sans Mono are bundled for the Android
+  // persona only; a Windows desktop does not have them (also without launcher
+  // switches, like stock Firefox).
+  if (!StaticPrefs::sg_fp_mobile() &&
+      (aLowerName.EqualsLiteral("roboto") ||
+       aLowerName.EqualsLiteral("noto serif") ||
+       aLowerName.EqualsLiteral("droid sans mono"))) {
     return true;
   }
   if (!StaticPrefs::sg_fp_enabled()) {
@@ -1167,6 +1235,14 @@ already_AddRefed<gfxFontEntry> gfxPlatformFontList::LookupInSharedFaceNameList(
   }
   if (!face || !family) {
     return nullptr;
+  }
+  // SellGravity antidetect: local() may only reach the Android families.
+  if (SGAndroidNameGateActive(StyleGenericFontFamily::None)) {
+    nsAutoCString familyKey(family->Key().AsString(list));
+    ToLowerCase(familyKey);
+    if (!SGIsAndroidFamily(familyKey)) {
+      return nullptr;
+    }
   }
   FontVisibility level = aFontVisibilityProvider
                              ? aFontVisibilityProvider->GetFontVisibility()
@@ -1816,6 +1892,20 @@ bool gfxPlatformFontList::FindAndAddFamiliesLocked(
     gfxFontStyle* aStyle, nsAtom* aLanguage, gfxFloat aDevToCssSize) {
   nsAutoCString key;
   GenerateFontListKey(aFamily, key);
+
+  if (SGAndroidNameGateActive(aGeneric)) {
+    // The lambda runs synchronously under mLock, which this method holds.
+    MOZ_PUSH_IGNORE_THREAD_SAFETY
+    bool ok = SGAndroidResolveName(key, [this](const nsACString& aName) {
+      nsAutoCString name(aName);
+      return SharedFontList() ? !!SharedFontList()->FindFamily(name)
+                              : !!mFontFamilies.GetWeak(name);
+    });
+    MOZ_POP_THREAD_SAFETY
+    if (!ok) {
+      return false;
+    }
+  }
 
   bool allowHidden = bool(aFlags & FindFamiliesFlags::eSearchHiddenFamilies);
   FontVisibility visibilityLevel =
