@@ -1,0 +1,35 @@
+{
+  "win-desktop": {
+    "args": [
+      "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:160.0) Gecko/20100101 Firefox/160.0",
+      "--timezone=Asia/Ho_Chi_Minh",
+      "--lang=vi-VN",
+      "--hardware-concurrency=8",
+      "--screen-size=1920,1080",
+      "--window-size=1280,860",
+      "--window-position=40,40",
+      "--webgl-vendor=Google Inc. (Intel)",
+      "--webgl-renderer=ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "--canvas-noise",
+      "--audio-noise",
+      "--fonts-noise",
+      "--webrtc-mode=disable",
+      "--location-mode=ask,10.7769,106.7009,30",
+      "--media-device-count=1,1,1"
+    ]
+  },
+  "android-phone": {
+    "args": [
+      "--user-agent=Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36",
+      "--device-mode=phone",
+      "--device-size=412,915",
+      "--timezone=Asia/Ho_Chi_Minh",
+      "--lang=vi-VN",
+      "--hardware-concurrency=8",
+      "--canvas-noise",
+      "--audio-noise",
+      "--webrtc-mode=disable",
+      "--location-mode=ask,10.7769,106.7009,30"
+    ]
+  }
+}

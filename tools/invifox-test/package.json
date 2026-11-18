@@ -1,0 +1,12 @@
+{
+  "name": "invifox-test",
+  "private": true,
+  "type": "module",
+  "description": "Drive an InviFox build through detection sites and collect results",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "dependencies": {
+    "puppeteer-core": "24.10.0"
+  }
+}

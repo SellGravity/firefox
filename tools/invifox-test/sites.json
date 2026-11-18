@@ -1,0 +1,15 @@
+[
+  { "name": "fingerprint-playground", "url": "https://demo.fingerprint.com/playground", "wait": 15000 },
+  { "name": "browserscan", "url": "https://www.browserscan.net/", "wait": 20000 },
+  { "name": "browserscan-bot", "url": "https://www.browserscan.net/bot-detection", "wait": 15000 },
+  { "name": "creepjs", "url": "https://abrahamjuliot.github.io/creepjs/", "wait": 25000 },
+  { "name": "pixelscan", "url": "https://pixelscan.net/", "wait": 20000 },
+  { "name": "iphey", "url": "https://iphey.com/", "wait": 15000 },
+  { "name": "sannysoft", "url": "https://bot.sannysoft.com/", "wait": 8000 },
+  { "name": "browserleaks-js", "url": "https://browserleaks.com/javascript", "wait": 8000 },
+  { "name": "browserleaks-webrtc", "url": "https://browserleaks.com/webrtc", "wait": 10000 },
+  { "name": "browserleaks-webgl", "url": "https://browserleaks.com/webgl", "wait": 8000 },
+  { "name": "browserleaks-canvas", "url": "https://browserleaks.com/canvas", "wait": 8000 },
+  { "name": "browserleaks-fonts", "url": "https://browserleaks.com/fonts", "wait": 15000 },
+  { "name": "whoer", "url": "https://whoer.net/", "wait": 15000 }
+]
