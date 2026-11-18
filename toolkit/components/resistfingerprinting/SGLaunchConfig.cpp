@@ -521,17 +521,29 @@ void ApplyMobile() {
   LockInt("dom.w3c_touch_events.enabled", 1);
   LockInt("ui.useOverlayScrollbars", 1);
 
-  // Font list like Android: Roboto/Noto family plus the names Android maps
-  // by alias (Arial->Roboto, Times New Roman->Noto Serif, Courier New->
-  // Droid Sans Mono...). Windows-only families (Segoe UI, Calibri, ...)
-  // disappear. Segoe UI Emoji stays only so emoji still render.
+  // Font list like Android. On a real phone "Arial", "Times New Roman",
+  // "Courier New"... are only aliases of the generic families, so a width
+  // probe never sees them as installed. Expose only the Android families
+  // (Roboto ships in <app>/fonts; Noto Serif / Droid Sans Mono are used when
+  // bundled too) and the bundled COLR emoji font: every Windows family,
+  // including Segoe UI Emoji, disappears.
   LockCString("font.system.whitelist",
-              "Roboto, Roboto Condensed, Noto Sans, Noto Serif, "
-              "Noto Sans Mono, Noto Color Emoji, Droid Sans Mono, Cutive Mono, "
-              "Coming Soon, Dancing Script, Carrois Gothic SC, "
-              "Source Sans Pro, Arial, Helvetica, Verdana, Tahoma, "
-              "Times New Roman, Georgia, Palatino Linotype, Courier New, "
-              "Segoe UI Emoji"_ns);
+              "Roboto, Noto Serif, Droid Sans Mono, Twemoji Mozilla"_ns);
+  // Firefox for Android defaults to sans-serif (Roboto).
+  for (const char* lang : {"x-western", "x-unicode", "x-cyrillic", "el"}) {
+    auto lockFont = [lang](const char* aPrefix, const nsACString& aValue) {
+      nsAutoCString name(aPrefix);
+      name.Append(lang);
+      LockCString(name.get(), aValue);
+    };
+    lockFont("font.default.", "sans-serif"_ns);
+    lockFont("font.name.sans-serif.", "Roboto"_ns);
+    lockFont("font.name.serif.", "Noto Serif"_ns);
+    lockFont("font.name-list.serif.", "Noto Serif, Roboto"_ns);
+    lockFont("font.name.monospace.", "Droid Sans Mono"_ns);
+    lockFont("font.name-list.monospace.", "Droid Sans Mono, Roboto"_ns);
+  }
+  LockCString("font.name-list.emoji", "Twemoji Mozilla"_ns);
   // Windows SAPI voices would reveal the host OS.
   LockBool("media.webspeech.synth.enabled", false);
 

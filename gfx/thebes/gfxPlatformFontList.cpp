@@ -624,6 +624,11 @@ static bool SGIsFontHidden(const nsACString& aLowerName) {
   if (!StaticPrefs::sg_fp_enabled()) {
     return false;
   }
+  // Roboto is bundled for the Android persona only; a Windows desktop does
+  // not have it.
+  if (!StaticPrefs::sg_fp_mobile() && aLowerName.EqualsLiteral("roboto")) {
+    return true;
+  }
   {
     const auto list = StaticPrefs::sg_fp_fonts_exclude();
     for (const auto& token : list->Split(',')) {
