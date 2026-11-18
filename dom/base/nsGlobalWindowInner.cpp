@@ -7610,6 +7610,15 @@ ChromeMessageBroadcaster* nsGlobalWindowInner::GetGroupMessageManager(
 
 void nsGlobalWindowInner::InitWasOffline() { mWasOffline = NS_IsOffline(); }
 
+/* static */
+bool nsGlobalWindowInner::IsWindowOrientationEnabled(JSContext*, JSObject*) {
+#if defined(MOZ_WIDGET_ANDROID)
+  return true;
+#else
+  return StaticPrefs::sg_fp_mobile();
+#endif
+}
+
 int16_t nsGlobalWindowInner::Orientation(CallerType aCallerType) {
   // GetOrientationAngle() returns 0, 90, 180 or 270.
   // window.orientation returns -90, 0, 90 or 180.

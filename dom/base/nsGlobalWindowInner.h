@@ -666,6 +666,8 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
       const nsAString& aUrl, const nsAString& aName, const nsAString& aOptions,
       mozilla::ErrorResult& aError);
   int16_t Orientation(mozilla::dom::CallerType aCallerType);
+  // SellGravity antidetect: window.orientation exposure (Android / persona).
+  static bool IsWindowOrientationEnabled(JSContext* aCx, JSObject* aObj);
 
   already_AddRefed<mozilla::dom::Console> GetConsole(JSContext* aCx,
                                                      mozilla::ErrorResult& aRv);

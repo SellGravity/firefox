@@ -715,14 +715,15 @@ Window includes TouchEventHandlers;
 
 Window includes OnErrorEventHandlerForWindow;
 
-#if defined(MOZ_WIDGET_ANDROID)
 // https://compat.spec.whatwg.org/#windoworientation-interface
+// SellGravity antidetect: exposed on Android builds, and at runtime for the
+// InviFox mobile persona (sg.fp.mobile).
 partial interface Window {
-  [UseCounter, NeedsCallerType]
+  [UseCounter, NeedsCallerType, Func="nsGlobalWindowInner::IsWindowOrientationEnabled"]
   readonly attribute short orientation;
+  [Func="nsGlobalWindowInner::IsWindowOrientationEnabled"]
            attribute EventHandler onorientationchange;
 };
-#endif
 
 [MOZ_CAN_RUN_SCRIPT_BOUNDARY]
 callback PromiseDocumentFlushedCallback = any ();
