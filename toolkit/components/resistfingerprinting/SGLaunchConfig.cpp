@@ -14,6 +14,7 @@
 #include "mozilla/Logging.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/StaticPtr.h"
+#include "gfxPlatform.h"
 #include "nsEscape.h"
 #include "nsIFile.h"
 #include "nsReadableUtils.h"
@@ -512,6 +513,20 @@ void ApplyMobile() {
   LockInt("dom.w3c_touch_events.enabled", 1);
   LockInt("ui.useOverlayScrollbars", 1);
 
+  // Font list like Android: Roboto/Noto family plus the names Android maps
+  // by alias (Arial->Roboto, Times New Roman->Noto Serif, Courier New->
+  // Droid Sans Mono...). Windows-only families (Segoe UI, Calibri, ...)
+  // disappear. Segoe UI Emoji stays only so emoji still render.
+  LockCString("font.system.whitelist",
+              "Roboto, Roboto Condensed, Noto Sans, Noto Serif, "
+              "Noto Sans Mono, Noto Color Emoji, Droid Sans Mono, Cutive Mono, "
+              "Coming Soon, Dancing Script, Carrois Gothic SC, "
+              "Source Sans Pro, Arial, Helvetica, Verdana, Tahoma, "
+              "Times New Roman, Georgia, Palatino Linotype, Courier New, "
+              "Segoe UI Emoji"_ns);
+  // Windows SAPI voices would reveal the host OS.
+  LockBool("media.webspeech.synth.enabled", false);
+
   int32_t w = 0, h = 0;
   const nsCString* ds = FindArg("device-size");
   if (ds && ParsePair(*ds, w, h) && w > 0 && h > 0) {
@@ -766,6 +781,12 @@ void ApplyLaunchConfig(nsIFile* aProfileDir) {
   }
   if (const nsCString* n = FindArg("profile-name")) {
     LockCString("sg.ui.profile_name", *n);
+  }
+
+  // If graphics (and so the system font list) came up before us, rebuild
+  // the list so font hiding / the mobile allowlist take effect.
+  if (gfxPlatform::Initialized()) {
+    gfxPlatform::GetPlatform()->UpdateFontList(true);
   }
 
   SG_LOG("launch config applied (%zu switches)", size_t(sArgs->Length()));
