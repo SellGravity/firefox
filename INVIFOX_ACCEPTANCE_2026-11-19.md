@@ -233,16 +233,26 @@ site). Thư mục này không commit.
    - Kích thước iPhone được map sang kích thước Android.
    - `--media-device-count=0,0,0` được giữ nguyên hành vi thật. Máy test
      không có mic/camera nên `enumerateDevices` rỗng, Firefox gốc cũng vậy.
-7. **Nhánh launcher** `feat/invifox-engine` (worktree `gravbrowser-invifox`):
-   các commit `fa11fdc6`, `c3bb99c9`, `5289b14d` mới ở local, chưa push và
-   chưa tạo PR. Chờ duyệt.
-8. **Phân phối cho người dùng:** launcher chưa có bước tải/cài InviFox như
-   Chromium runtime. Máy khác sẽ báo `INVIFOX_BINARY_NOT_FOUND` cho tới khi
-   làm xong các việc sau:
-   - đóng gói (`mach package`) và ký số `invifox.exe`;
-   - đăng release lên GitHub;
-   - thêm route `runtime` cho engine Firefox phía server;
-   - thêm trình cài InviFox vào launcher.
+7. **Nhánh launcher** `feat/invifox-runtime` (worktree `gravbrowser-invifox`,
+   dựng trên `develop` 1.6.85; commit `414ec8c0` và `59f52c1b`). Thay cho
+   nhánh cũ `feat/invifox-engine`, vẫn còn bản backup
+   `backup/invifox-engine-pre-rebase`. Mới ở local: lệnh push bị hệ thống quyền
+   chặn, chờ anh/chị push hoặc cho phép.
+8. **Phân phối cho người dùng (đã làm phần code):**
+   - InviFox phát hành giống Chromium runtime: release trên GitHub
+     `SellGravity/firefox`, tag `v160.0.1.N`, file
+     `invifox-<version>-win64.zip`.
+   - Server có route `/runtime/*?engine=firefox`.
+   - Launcher tự tải, cài vào `invifox-runtimes/<version>` và tự cập nhật
+     bản mới nhất.
+   - Bản đầu tiên `160.0.1.1` đã đóng gói và kiểm thử từ chính file zip:
+     BrowserScan 100%, CreepJS 13%, proxy/WebRTC 6/6, giải nén bằng AdmZip
+     của launcher OK. Tag đã push.
+   - Còn lại:
+     - tạo release trên web và tải zip lên;
+     - deploy server;
+     - merge và phát hành launcher;
+     - ký số `invifox.exe` (chưa ký).
 
 ## 5. Commit trong phiên này (develop)
 
