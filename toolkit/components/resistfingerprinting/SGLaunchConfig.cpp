@@ -342,7 +342,21 @@ nsCString AcceptLanguagesFor(const nsACString& aLang) {
 }
 
 uint32_t DeriveSeed(const nsAString& aProfilePath, const char* aSalt) {
-  NS_ConvertUTF16toUTF8 path(aProfilePath);
+  // Only the last two path components (InviBrowser: "<profile id>/firefox"),
+  // lower-cased: the noise must not change when the profile folder syncs to
+  // another machine or user account, or the data folder moves. The launcher
+  // normally passes explicit seeds derived from the profile id anyway.
+  NS_ConvertUTF16toUTF8 full(aProfilePath);
+  full.ReplaceChar('\\', '/');
+  while (!full.IsEmpty() && full.Last() == '/') {
+    full.Truncate(full.Length() - 1);
+  }
+  int32_t cut = full.RFindChar('/');
+  if (cut > 0) {
+    cut = Substring(full, 0, cut).RFindChar('/');
+  }
+  nsAutoCString path(cut >= 0 ? Substring(full, cut + 1) : Substring(full, 0));
+  ToLowerCase(path);
   HashNumber h = HashString(path.get(), path.Length());
   h = AddToHash(h, HashString(aSalt, strlen(aSalt)));
   return h ? h : 1;  // 0 means "off" for consumers
