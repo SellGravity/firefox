@@ -685,6 +685,162 @@ static bool SGAndroidResolveName(nsACString& aKey, Exists aExists) {
   return false;
 }
 
+// SellGravity antidetect, macOS desktop persona. Same idea as the Android gate:
+// every host family stays available for per-character fallback, but a page can
+// only name what a stock Mac has. Families a Mac ships under the same name as
+// Windows are used as they are; Mac-only families resolve to a host face with
+// the same or close metrics (Helvetica/Arial and Times/Times New Roman are
+// metric-compatible designs, Lucida Grande/Lucida Sans Unicode the same
+// family). Windows-only families (Segoe UI, Calibri, Consolas, ...) are not
+// reachable by name, so font probes see a Mac font set.
+static const char* const kSGMacSharedFamilies[] = {
+    "arial",           "arial black",        "arial narrow",
+    "arial rounded mt bold", "brush script mt", "comic sans ms",
+    "courier new",     "georgia",            "impact",
+    "microsoft sans serif", "papyrus",       "rockwell",
+    "symbol",          "tahoma",             "times new roman",
+    "trebuchet ms",    "verdana",            "webdings",
+    "wingdings",       "wingdings 2",        "wingdings 3",
+};
+
+static const SGAndroidAlias kSGMacAliases[] = {
+    // CSS system fonts / system-ui on a Mac (see ApplyMac in SGLaunchConfig).
+    {"-apple-system", {"segoe ui", "arial"}},
+    {"helvetica", {"arial"}},
+    {"helvetica neue", {"arial"}},
+    {"arial unicode ms", {"arial unicode ms", "arial"}},
+    {"arial hebrew", {"arial"}},
+    {"times", {"times new roman"}},
+    {"courier", {"courier new"}},
+    {"menlo", {"courier new"}},
+    {"monaco", {"lucida console", "courier new"}},
+    {"andale mono", {"lucida console", "courier new"}},
+    {"lucida grande", {"lucida sans unicode", "verdana"}},
+    {"geneva", {"verdana"}},
+    {"avenir", {"century gothic", "segoe ui"}},
+    {"avenir next", {"century gothic", "segoe ui"}},
+    {"futura", {"century gothic", "tw cen mt", "segoe ui"}},
+    {"gill sans", {"gill sans mt", "calibri"}},
+    {"optima", {"candara", "segoe ui"}},
+    {"palatino", {"palatino linotype", "book antiqua"}},
+    {"baskerville", {"baskerville old face", "georgia"}},
+    {"didot", {"bodoni mt", "times new roman"}},
+    {"hoefler text", {"constantia", "georgia"}},
+    {"cochin", {"constantia", "georgia"}},
+    {"american typewriter", {"lucida sans typewriter", "courier new"}},
+    {"apple chancery", {"monotype corsiva", "segoe script", "comic sans ms"}},
+    {"chalkboard", {"comic sans ms"}},
+    {"chalkboard se", {"comic sans ms"}},
+    {"marker felt", {"segoe print", "comic sans ms"}},
+    {"noteworthy", {"ink free", "segoe print"}},
+    {"zapfino", {"segoe script", "edwardian script itc"}},
+    {"copperplate", {"copperplate gothic light", "copperplate gothic bold"}},
+    {"apple color emoji", {"twemoji mozilla", "segoe ui emoji"}},
+    {"apple symbols", {"segoe ui symbol"}},
+    {"pingfang sc", {"microsoft yahei", "dengxian", "simhei"}},
+    {"pingfang tc", {"microsoft jhenghei", "pmingliu"}},
+    {"pingfang hk", {"microsoft jhenghei", "pmingliu"}},
+    {"heiti sc", {"microsoft yahei", "simhei"}},
+    {"heiti tc", {"microsoft jhenghei", "pmingliu"}},
+    {"songti sc", {"simsun", "nsimsun"}},
+    {"hiragino sans", {"yu gothic", "meiryo", "ms gothic"}},
+    {"hiragino kaku gothic pron", {"yu gothic", "meiryo", "ms gothic"}},
+    {"hiragino maru gothic pron", {"meiryo", "yu gothic", "ms gothic"}},
+    {"hiragino mincho pron", {"yu mincho", "ms mincho"}},
+    {"apple sd gothic neo", {"malgun gothic", "gulim"}},
+    {"applegothic", {"malgun gothic", "gulim"}},
+    {"applemyungjo", {"batang", "gungsuh"}},
+    {"geeza pro", {"arial"}},
+    {"thonburi", {"leelawadee ui", "tahoma"}},
+    {"kohinoor devanagari", {"nirmala ui", "mangal"}},
+    // Rest of the stock macOS set that font probes ask for (Scanbrowser,
+    // CreepJS, FingerprintJS lists): a Mac has every one of them.
+    {"chalkduster", {"segoe print", "comic sans ms"}},
+    {"herculanum", {"papyrus", "segoe script"}},
+    {"luminari", {"papyrus", "segoe script"}},
+    {"trattatello", {"papyrus", "segoe script"}},
+    {"phosphate", {"impact"}},
+    {"party let", {"segoe script", "comic sans ms"}},
+    {"savoye let", {"segoe script", "comic sans ms"}},
+    {"snell roundhand", {"segoe script", "comic sans ms"}},
+    {"signpainter", {"segoe print", "comic sans ms"}},
+    {"bradley hand", {"segoe print", "comic sans ms"}},
+    {"big caslon", {"constantia", "georgia"}},
+    {"bodoni 72", {"bodoni mt", "times new roman"}},
+    {"bodoni 72 oldstyle", {"bodoni mt", "times new roman"}},
+    {"bodoni 72 smallcaps", {"bodoni mt", "times new roman"}},
+    {"iowan old style", {"cambria", "georgia"}},
+    {"charter", {"cambria", "georgia"}},
+    {"athelas", {"constantia", "georgia"}},
+    {"superclarendon", {"rockwell", "georgia"}},
+    {"stix two text", {"cambria", "times new roman"}},
+    {"stixgeneral", {"cambria", "times new roman"}},
+    {"din alternate", {"bahnschrift", "arial narrow"}},
+    {"din condensed", {"bahnschrift", "arial narrow"}},
+    {"avenir next condensed", {"arial narrow", "segoe ui"}},
+    {"seravek", {"segoe ui", "arial"}},
+    {"skia", {"candara", "segoe ui"}},
+    {"kailasa", {"segoe ui", "arial"}},
+    {"kefa", {"segoe ui", "arial"}},
+    {"euphemia ucas", {"segoe ui", "arial"}},
+    {"damascus", {"tahoma", "arial"}},
+    {"baghdad", {"arial"}},
+    {"al bayan", {"tahoma", "arial"}},
+    {"farah", {"arial"}},
+    {"devanagari mt", {"mangal", "nirmala ui"}},
+    {"kohinoor bangla", {"nirmala ui", "vrinda"}},
+    {"bangla sangam mn", {"vrinda", "nirmala ui"}},
+    {"tamil sangam mn", {"latha", "nirmala ui"}},
+    {"telugu sangam mn", {"gautami", "nirmala ui"}},
+    {"kannada sangam mn", {"tunga", "nirmala ui"}},
+    {"malayalam sangam mn", {"kartika", "nirmala ui"}},
+    {"gujarati sangam mn", {"shruti", "nirmala ui"}},
+    {"gurmukhi mn", {"raavi", "nirmala ui"}},
+    {"sathu", {"leelawadee ui", "tahoma"}},
+    {"silom", {"leelawadee ui", "tahoma"}},
+    {"krungthep", {"leelawadee ui", "tahoma"}},
+    {"ayuthaya", {"leelawadee ui", "tahoma"}},
+    {"hiragino kaku gothic pro", {"yu gothic", "meiryo", "ms gothic"}},
+    {"hiragino mincho pro", {"yu mincho", "ms mincho"}},
+};
+
+static bool SGMacPersona() {
+  return StaticPrefs::sg_fp_mac() && !StaticPrefs::sg_fp_mobile() &&
+         XRE_IsContentProcess();
+}
+
+static bool SGIsMacSharedFamily(const nsACString& aLowerName) {
+  for (const char* name : kSGMacSharedFamilies) {
+    if (aLowerName.Equals(name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Rewrites a Mac-only family name to its host face. Returns false if the page
+// may not name aKey. For CSS generics (font.name.* = Times/Helvetica/Menlo...)
+// aGenericLookup only rewrites and never refuses.
+template <typename Exists>
+static bool SGMacResolveName(nsACString& aKey, bool aGenericLookup,
+                             Exists aExists) {
+  if (SGIsMacSharedFamily(aKey)) {
+    return true;
+  }
+  for (const auto& alias : kSGMacAliases) {
+    if (aKey.Equals(alias.mName)) {
+      for (const char* target : alias.mTargets) {
+        if (target && aExists(nsDependentCString(target))) {
+          aKey.Assign(target);
+          return true;
+        }
+      }
+      return aGenericLookup;
+    }
+  }
+  return aGenericLookup;
+}
+
 static bool SGIsFontHidden(const nsACString& aLowerName) {
   // Roboto, Noto Serif and Droid Sans Mono are bundled for the Android
   // persona only; a Windows desktop does not have them (also without launcher
@@ -709,9 +865,12 @@ static bool SGIsFontHidden(const nsACString& aLowerName) {
       }
     }
   }
-  const uint32_t seed = StaticPrefs::sg_fp_fonts_noise()
-                            ? StaticPrefs::sg_fp_seed_fonts()
-                            : 0;
+  // Mac persona: the page-visible set is the fixed stock-Mac set (name gate);
+  // hiding host Office fonts would only change alias targets.
+  const uint32_t seed =
+      StaticPrefs::sg_fp_fonts_noise() && !StaticPrefs::sg_fp_mac()
+          ? StaticPrefs::sg_fp_seed_fonts()
+          : 0;
   if (!seed) {
     return false;
   }
@@ -1241,6 +1400,14 @@ already_AddRefed<gfxFontEntry> gfxPlatformFontList::LookupInSharedFaceNameList(
     nsAutoCString familyKey(family->Key().AsString(list));
     ToLowerCase(familyKey);
     if (!SGIsAndroidFamily(familyKey)) {
+      return nullptr;
+    }
+  }
+  // Mac persona: local() may not reach Windows-only families either.
+  if (SGMacPersona()) {
+    nsAutoCString familyKey(family->Key().AsString(list));
+    ToLowerCase(familyKey);
+    if (!SGIsMacSharedFamily(familyKey)) {
       return nullptr;
     }
   }
@@ -1901,6 +2068,19 @@ bool gfxPlatformFontList::FindAndAddFamiliesLocked(
       return SharedFontList() ? !!SharedFontList()->FindFamily(name)
                               : !!mFontFamilies.GetWeak(name);
     });
+    MOZ_POP_THREAD_SAFETY
+    if (!ok) {
+      return false;
+    }
+  } else if (SGMacPersona()) {
+    MOZ_PUSH_IGNORE_THREAD_SAFETY
+    bool ok = SGMacResolveName(
+        key, aGeneric != StyleGenericFontFamily::None,
+        [this](const nsACString& aName) {
+          nsAutoCString name(aName);
+          return SharedFontList() ? !!SharedFontList()->FindFamily(name)
+                                  : !!mFontFamilies.GetWeak(name);
+        });
     MOZ_POP_THREAD_SAFETY
     if (!ok) {
       return false;

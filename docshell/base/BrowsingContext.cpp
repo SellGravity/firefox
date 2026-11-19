@@ -448,6 +448,13 @@ BrowsingContext::FieldValues BrowsingContext::ComputeInitialFields(
     fields.Get<IDX_CurrentOrientationType>() =
         OrientationType::Portrait_primary;
     fields.Get<IDX_CurrentOrientationAngle>() = 0.0f;
+  } else if (!aParentWindow && aType == Type::Content &&
+             StaticPrefs::sg_fp_mac()) {
+    // macOS persona: Retina devicePixelRatio (see ApplyMac).
+    const float dppx = StaticPrefs::sg_fp_dppx();
+    if (dppx > 0.0f) {
+      fields.Get<IDX_OverrideDPPX>() = dppx;
+    }
   }
 
   return fields;

@@ -675,6 +675,83 @@ void ApplyMobile() {
   LockUint("sg.fp.max_touch_points", uint32_t(tp));
 }
 
+// macOS desktop persona: a Mac UA without --device-mode=phone. navigator.*
+// already comes from BuildFirefoxUA; this makes the rest of the profile read
+// like Firefox for Mac instead of a Windows host behind a Mac UA:
+//  - overlay scrollbars (macOS default: scrollbar width 0),
+//  - Mac default fonts per generic and a page-visible font set of a Mac (the
+//    name gate and the Mac -> host aliases live in gfxPlatformFontList),
+//  - CSS system fonts "-apple-system" at the AppKit sizes (13px / 11px),
+//    exactly what gfxMacPlatformFontList::LookupSystemFont reports,
+//  - no Windows SAPI voices (SapiService), Apple GPU (ClientWebGLContext).
+void ApplyMac() {
+  if (Preferences::GetBool("sg.fp.mobile", false)) {
+    return;
+  }
+  const nsCString* ua = FindArg("user-agent");
+  if (!ua || DetectOs(*ua) != UAOs::Mac) {
+    return;
+  }
+  LockBool("sg.fp.mac", true);
+  LockInt("ui.useOverlayScrollbars", 1);
+
+  // Every Mac Firefox ships on today (MacBook, iMac, Studio Display) is
+  // Retina: devicePixelRatio 2 unless the launcher says otherwise.
+  float dppx = 2.0f;
+  const nsCString* df = FindArg("force-device-scale-factor");
+  if (!df) df = FindArg("dpr-override");
+  if (df) {
+    nsresult rv;
+    const float v = float(nsCString(*df).ToDouble(&rv));
+    if (NS_SUCCEEDED(rv) && v >= 1.0f && v <= 3.0f) dppx = v;
+  }
+  LockFloat("sg.fp.dppx", dppx);
+
+  // Firefox for Mac defaults (modules/libpref/init/all.js, XP_MACOSX). The
+  // names resolve through the Mac alias table to metric-compatible host
+  // faces (Times -> Times New Roman, Helvetica -> Arial, Menlo -> Courier
+  // New), so generic text measures like it does on a Mac.
+  for (const char* lang : {"x-western", "x-unicode", "x-cyrillic", "el"}) {
+    auto lockFont = [lang](const char* aPrefix, const nsACString& aValue) {
+      nsAutoCString name(aPrefix);
+      name.Append(lang);
+      LockCString(name.get(), aValue);
+    };
+    lockFont("font.default.", "serif"_ns);
+    lockFont("font.name.serif.", "Times"_ns);
+    lockFont("font.name-list.serif.", "Times"_ns);
+    lockFont("font.name.sans-serif.", "Helvetica"_ns);
+    lockFont("font.name-list.sans-serif.", "Helvetica"_ns);
+    lockFont("font.name.monospace.", "Menlo"_ns);
+    lockFont("font.name-list.monospace.", "Menlo"_ns);
+    lockFont("font.name.cursive.", "Apple Chancery"_ns);
+    lockFont("font.name-list.cursive.", "Apple Chancery"_ns);
+    lockFont("font.name.fantasy.", "Papyrus"_ns);
+    lockFont("font.name-list.fantasy.", "Papyrus"_ns);
+  }
+  LockCString("font.name-list.emoji", "Twemoji Mozilla"_ns);
+
+  static const struct {
+    const char* mId;
+    float mSize;
+    bool mBold;
+  } kSystemFonts[] = {
+      {"caption", 13.0f, false},          {"icon", 13.0f, false},
+      {"menu", 13.0f, false},             {"message-box", 11.0f, false},
+      {"small-caption", 11.0f, true},     {"status-bar", 11.0f, false},
+      {"-moz-pull-down-menu", 13.0f, false}, {"-moz-button", 11.0f, false},
+      {"-moz-list", 11.0f, false},        {"-moz-field", 11.0f, false},
+  };
+  for (const auto& f : kSystemFonts) {
+    nsAutoCString pref("ui.font.");
+    pref.Append(f.mId);
+    LockCString(pref.get(), "-apple-system"_ns);
+    LockFloat(nsAutoCString(pref + ".size"_ns).get(), f.mSize);
+    LockFloat(nsAutoCString(pref + ".weight"_ns).get(),
+              f.mBold ? 700.0f : 400.0f);
+  }
+}
+
 void ApplyHardening() {
   // Things a launcher-driven profile must never do on its own.
   LockBool("browser.shell.checkDefaultBrowser", false);
@@ -865,6 +942,8 @@ void ApplyLaunchConfig(nsIFile* aProfileDir) {
 
   // --- mobile persona (--device-mode=phone) -------------------------------
   ApplyMobile();
+  // --- macOS desktop persona (Mac UA, not phone) -----------------------------
+  ApplyMac();
 
   // --- WebGL -----------------------------------------------------------------
   if (const nsCString* v = FindArg("webgl-vendor")) {

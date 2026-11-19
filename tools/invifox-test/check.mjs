@@ -24,6 +24,7 @@ const arg = name => {
 const has = name => args.includes(`--${name}`) || args.some(x => x.startsWith(`--${name}=`));
 const ua = arg("user-agent") || "";
 const mobile = arg("device-mode") === "phone" || /Android|iPhone|iPad/.test(ua);
+const mac = !mobile && /Macintosh|Mac OS X/.test(ua);
 
 const results = [];
 const rule = (name, ok, detail = "") => results.push({ name, ok: !!ok, detail });
@@ -36,6 +37,8 @@ rule("vendor is empty (Firefox)", self.vendor === "", self.vendor);
 if (mobile) {
   rule("Android UA", /Android \d+; Mobile/.test(self.userAgent), self.userAgent);
   rule("platform Linux armv81", self.platform === "Linux armv81", self.platform);
+} else if (mac) {
+  rule("Mac UA/platform", /Macintosh; Intel Mac OS X 10\.15/.test(self.userAgent) && self.platform === "MacIntel", `${self.platform}`);
 } else {
   rule("Windows UA/platform", /Windows NT 10\.0; Win64; x64/.test(self.userAgent) && self.platform === "Win32", `${self.platform}`);
 }
@@ -97,11 +100,20 @@ if (mobile) {
   rule("pointer fine", !self.media.pointerCoarse);
   rule("no window.orientation on desktop", !self.media.orientationApi);
   rule("speechSynthesis API present", typeof self.speechVoices === "number", String(self.speechVoices));
-  rule("CSS system font is Segoe UI (Windows)", /Segoe UI/.test(self.systemFont || ""), self.systemFont);
+  if (mac) {
+    rule("CSS system font is -apple-system (Mac)", /-apple-system/.test(self.systemFont || ""), self.systemFont);
+    rule("no Windows voices on Mac", self.speechVoices === 0, String(self.speechVoices));
+  } else {
+    rule("CSS system font is Segoe UI (Windows)", /Segoe UI/.test(self.systemFont || ""), self.systemFont);
+  }
   rule("Roboto hidden on desktop", !(self.fonts || []).includes("Roboto"));
   rule("Android-only fonts hidden on desktop", !["Noto Serif", "Droid Sans Mono"].some(f => (self.fonts || []).includes(f)));
   const r = self.webgl?.unmaskedRenderer || "";
-  rule("WebGL renderer Windows ANGLE D3D11", /ANGLE \(.*Direct3D11/.test(r), r);
+  if (mac) {
+    rule("WebGL renderer Apple ANGLE Metal", r === "ANGLE (Apple, ANGLE Metal Renderer: Apple M1), or similar", r);
+  } else {
+    rule("WebGL renderer Windows ANGLE D3D11", /ANGLE \(.*Direct3D11/.test(r), r);
+  }
   rule("WebGL renderer not Mesa/LLVM/OpenGL", !/Mesa|LLVM|OpenGL|llvmpipe|SwiftShader/.test(r), r);
 }
 

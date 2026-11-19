@@ -290,5 +290,76 @@
       "--disable-features=MediaRouter,Translate,OptimizationGuideModelDownloading,TabHoverCards,TFLiteLanguageDetectionEnabled"
     ],
     "dropped": []
+  },
+  {
+    "name": "mac-default",
+    "fingerprint": {
+      "profileName": "",
+      "device_mode": "desktop",
+      "screen": {
+        "width": 1440,
+        "height": 900,
+        "color_depth": 30,
+        "pixel_ratio": 2
+      },
+      "hardware_concurrency": 8,
+      "device_memory": 16,
+      "memory": 16,
+      "mac_address": "BE-52-90-6F-BB-9A",
+      "webgl_vendor": "Google Inc. (Apple)",
+      "webgl_renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)",
+      "web_rtc": "disabled",
+      "canvas_noise": false,
+      "fonts_noise": false,
+      "rects_noise": false,
+      "audio_noise": false,
+      "engine": "firefox",
+      "os": "macos",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "language": "vi-VN",
+      "languages": [
+        "vi-VN",
+        "vi",
+        "en-US",
+        "en"
+      ],
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:160.0) Gecko/20100101 Firefox/160.0"
+    },
+    "args": [
+      "-no-remote",
+      "-wait-for-browser",
+      "-profile",
+      "PROFILE_DIR",
+      "--remote-debugging-port=9555",
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--disable-blink-features=AutomationControlled",
+      "--disable-sync",
+      "--disable-translate",
+      "--disable-infobars",
+      "--disable-background-networking",
+      "--disable-component-update",
+      "--disable-default-apps",
+      "--device-mode=window",
+      "--webgl-vendor=Google Inc. (Apple)",
+      "--webgl-renderer=ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)",
+      "--window-size=1440,900",
+      "--window-position=0,0",
+      "--screen-size=1440,900",
+      "--force-device-scale-factor=2",
+      "--hardware-concurrency=8",
+      "--device-memory=16",
+      "--media-device-count=0,0,0",
+      "--timezone=Asia/Ho_Chi_Minh",
+      "--location-mode=ask,ip",
+      "--lang=vi-VN",
+      "--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:160.0) Gecko/20100101 Firefox/160.0",
+      "--canvas-seed=758465263",
+      "--audio-noise-seed=82919829",
+      "--unicode-glyphs-seed=2666829506",
+      "--rects-noise-seed=2975871069",
+      "--disable-features=MediaRouter,Translate,OptimizationGuideModelDownloading,TabHoverCards,TFLiteLanguageDetectionEnabled"
+    ],
+    "dropped": []
   }
 ]

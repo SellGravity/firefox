@@ -205,7 +205,8 @@ bool SapiService::Init() {
   // SellGravity antidetect (InviFox): the Android persona keeps the
   // speechSynthesis API (Firefox for Android has it) but must not list the
   // host's Windows SAPI voices ("Microsoft David"...).
-  if (StaticPrefs::sg_fp_mobile()) {
+  // Same for the macOS persona (a Mac has no "Microsoft ..." voices).
+  if (StaticPrefs::sg_fp_mobile() || StaticPrefs::sg_fp_mac()) {
     return false;
   }
 

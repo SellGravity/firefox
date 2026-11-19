@@ -104,6 +104,12 @@ static std::string SGDefaultMobileRenderer() {
   return kGpus[seed % std::size(kGpus)];
 }
 
+// GL_RENDERER of ANGLE Metal on an Apple Silicon Mac (format checked by
+// SanitizeRenderer's kReAngleMetal).
+static constexpr char kSGMacRenderer[] =
+    "ANGLE (Apple, ANGLE Metal Renderer: Apple M2, Version 15.5 (Build "
+    "24F74))";
+
 static std::string SGMobileGpuVendor(const std::string& aRenderer) {
   if (aRenderer.find("Adreno") != std::string::npos) {
     return "Qualcomm";
@@ -2526,6 +2532,13 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
       if (StaticPrefs::sg_fp_mobile()) {
         return Some(SGIsMobileGpu(fake) ? fake : SGDefaultMobileRenderer());
       }
+      if (StaticPrefs::sg_fp_mac()) {
+        // Firefox for Mac (macOS 12+) runs WebGL on ANGLE Metal; the raw
+        // string goes through SanitizeRenderer below like a real one, giving
+        // "ANGLE (Apple, ANGLE Metal Renderer: Apple M1), or similar" for
+        // every Apple Silicon Mac - what real Firefox for Mac reports.
+        return Some(std::string(kSGMacRenderer));
+      }
       if (fake.empty() || fake.find("Direct3D") == std::string::npos) {
         return Nothing();
       }
@@ -2551,6 +2564,9 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
       if (auto fake = SGFakeRenderer()) {
         if (StaticPrefs::sg_fp_mobile()) {
           return Some(SGMobileGpuVendor(*fake));
+        }
+        if (StaticPrefs::sg_fp_mac()) {
+          return Some(std::string("Google Inc. (Apple)"));  // ANGLE Metal
         }
         const auto prefLock = StaticPrefs::webgl_override_unmasked_vendor();
         if (!prefLock->IsEmpty()) {

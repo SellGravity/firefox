@@ -120,12 +120,14 @@ Maybe<CSSIntRect> nsScreen::SGSpoofedScreenRect(bool aAvail) {
   nsAutoCString platform;
   Preferences::GetCString("general.platform.override", platform);
   int32_t reserved = 48;  // Windows 11 taskbar at 100% scale (measured)
+  int32_t top = 0;        // the taskbar sits at the bottom
   if (platform.EqualsLiteral("MacIntel")) {
     reserved = 25;  // macOS menu bar (Dock auto-hidden)
+    top = 25;       // ...at the top: screen.availTop is 25 on a Mac
   } else if (StringBeginsWith(platform, "Linux"_ns)) {
     reserved = 0;
   }
-  return Some(CSSIntRect(0, 0, w, std::max(1, h - reserved)));
+  return Some(CSSIntRect(0, top, w, std::max(1, h - reserved)));
 }
 
 CSSIntRect nsScreen::GetAvailRect() {

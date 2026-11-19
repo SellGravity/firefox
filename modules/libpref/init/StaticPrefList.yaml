@@ -19870,6 +19870,13 @@
   value: false
   mirror: always
 
+# macOS desktop persona (Firefox for Mac on the Windows host): font name gate,
+# Apple GPU, "-apple-system" CSS system fonts, no SAPI voices.
+- name: sg.fp.mac
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: sg.fp.max_touch_points
   type: RelaxedAtomicUint32
   value: 5

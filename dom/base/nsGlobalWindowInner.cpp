@@ -3786,6 +3786,10 @@ int32_t nsGlobalWindowInner::GetOuterWidth(CallerType aCallerType,
       }
       int32_t real = outer->GetOuterWidthOuter(aCallerType, aError);
       int32_t inner = int32_t(std::ceil(GetInnerWidth(aCallerType, aError)));
+      // macOS windows have no side borders: outerWidth == innerWidth.
+      if (StaticPrefs::sg_fp_mac()) {
+        return std::min(inner, scr->Width());
+      }
       return std::max(inner, std::min(real, scr->Width()));
     }
   }
@@ -3861,7 +3865,8 @@ int32_t nsGlobalWindowInner::GetScreenY(CallerType aCallerType,
       }
       int32_t y = outer->GetScreenYOuter(aCallerType, aError);
       int32_t h = GetOuterHeight(aCallerType, aError);
-      return std::clamp(y, 0, std::max(0, scr->Height() - h));
+      // Inside the work area: below the menu bar on a Mac (availTop 25).
+      return std::clamp(y, scr->Y(), std::max(scr->Y(), scr->YMost() - h));
     }
   }
   FORWARD_TO_OUTER_OR_THROW(GetScreenYOuter, (aCallerType, aError), aError, 0);
