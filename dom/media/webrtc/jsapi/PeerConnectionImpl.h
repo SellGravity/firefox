@@ -928,6 +928,16 @@ class PeerConnectionImpl final
   // Used to store the mDNS hostnames that we have registered
   std::set<std::string> mRegisteredMDNSHostnames;
 
+  // SellGravity antidetect (InviFox): --webrtc-mode=forward|replace behind a
+  // proxy. Real gathering is proxy-only (no UDP socket can reach a STUN
+  // server and reveal the real IP); per transport we then surface the
+  // candidates a NATed Firefox would gather, with the proxy exit IP as the
+  // server-reflexive address. See SGStartSynthesizedGathering().
+  bool SGSynthActive() const;
+  void SGStartSynthesizedGathering(bool aObfuscateHostAddresses);
+  std::set<std::string> mSGSynthesized;  // transportId + ":" + ufrag
+  std::string mSGHostName;               // mDNS name, one per connection
+
   // web-compat stopgap
   bool mAllowOldSetParameters = false;
 

@@ -114,6 +114,8 @@
 #include "nsPrintfCString.h"
 #include "nsURLHelper.h"
 #include "nsXULAppAPI.h"
+#include "mozilla/RandomNum.h"
+#include "mozilla/StaticPrefs_sg.h"
 #include "transport/nr_socket_proxy_config.h"
 
 #ifdef XP_WIN
@@ -3685,6 +3687,164 @@ void PeerConnectionImpl::OnCandidateError(
                                    ObString(aErrorInfo.mErrorText.c_str()), rv);
 }
 
+// SellGravity antidetect (InviFox): --webrtc-mode=forward|replace behind a
+// proxy (the launcher default for proxied profiles). SGLaunchConfig makes ICE
+// proxy-only, so no UDP socket ever reaches a STUN server - a page-supplied
+// STUN server would otherwise see the real public IP no matter how the
+// candidate text is rewritten. Proxy-only ICE without a TURN server gathers
+// nothing and never even reports "gathering", which no real browser does. So
+// instead of starting nICEr we play what Firefox gathers behind a NAT, per
+// transport: "gathering", mDNS host candidates (UDP + TCP active) at once, a
+// server-reflexive candidate carrying the proxy exit IP a STUN round trip
+// later, then "complete". Same priorities, foundations and raddr/rport
+// masking as nICEr; everything goes through CandidateReady /
+// UpdateDefaultCandidate / IceGatheringStateChange, so events, local SDP
+// (a=candidate, c=, m= port, a=rtcp, end-of-candidates) and bundling stay
+// consistent. No socket backs these candidates: like the Chromium fork's
+// forward mode over an HTTP proxy, a real P2P connection cannot be made.
+// --webrtc-mode=disable uses the same path with no candidate at all.
+bool PeerConnectionImpl::SGSynthActive() const {
+  return XRE_IsContentProcess() && mForceProxy &&
+         StaticPrefs::sg_fp_webrtc_synth();
+}
+
+void PeerConnectionImpl::SGStartSynthesizedGathering(
+    bool aObfuscateHostAddresses) {
+  struct Transport {
+    std::string mId;
+    std::string mUfrag;
+    size_t mComponents;
+    uint16_t mPorts[2];
+  };
+  std::vector<Transport> transports;
+  mJsepSession->ForEachTransceiver([&](const JsepTransceiver& aTransceiver) {
+    const auto& t = aTransceiver.mTransport;
+    if (t.mTransportId.empty() || !t.mComponents) {
+      return;
+    }
+    for (const auto& known : transports) {
+      if (known.mId == t.mTransportId) {
+        return;  // bundled m-sections share one transport
+      }
+    }
+    if (!mSGSynthesized.insert(t.mTransportId + ":" + t.mLocalUfrag).second) {
+      return;  // this ICE generation was already played
+    }
+    Transport entry{t.mTransportId, t.mLocalUfrag,
+                    std::min<size_t>(t.mComponents, 2), {0, 0}};
+    for (size_t c = 0; c < entry.mComponents; ++c) {
+      // Ephemeral range the OS hands out to nICEr sockets.
+      entry.mPorts[c] =
+          static_cast<uint16_t>(49152 + RandomUint64OrDie() % 16383);
+    }
+    transports.push_back(entry);
+  });
+  if (transports.empty()) {
+    return;
+  }
+
+  if (aObfuscateHostAddresses && mSGHostName.empty()) {
+    char buf[NSID_LENGTH];
+    nsID::GenerateUUID().ToProvidedString(buf);
+    // "{8-4-4-4-12}" -> "8-4-4-4-12.local", lower case like nICEr.
+    std::string uuid(buf + 1, NSID_LENGTH - 3);
+    for (char& ch : uuid) {
+      ch = static_cast<char>(tolower(static_cast<unsigned char>(ch)));
+    }
+    mSGHostName = uuid + ".local";
+  }
+  // With host obfuscation off (camera/mic permission granted) Firefox shows
+  // the LAN address; we have no believable one, so show no host candidate,
+  // as with media.peerconnection.ice.no_host.
+  // --webrtc-mode=disable: gathering runs and completes with no candidate at
+  // all, like the Chromium fork's strict disable (never stuck in "new").
+  bool silent = false;
+  {
+    const auto mode = StaticPrefs::sg_fp_webrtc_mode();
+    silent = mode->EqualsLiteral("disable") || mode->EqualsLiteral("disabled");
+  }
+  const std::string hostName =
+      (aObfuscateHostAddresses && !silent) ? mSGHostName : "";
+
+  RefPtr<PeerConnectionImpl> self(this);
+  NS_DispatchToMainThread(NS_NewRunnableFunction(
+      "PeerConnectionImpl::SGHostCandidates", [self, transports, hostName]() {
+        for (const auto& t : transports) {
+          if (self->IsClosed()) {
+            return;
+          }
+          self->IceGatheringStateChange(t.mId,
+                                        dom::RTCIceGathererState::Gathering);
+          if (hostName.empty()) {
+            continue;
+          }
+          // Firefox numbering for one interface: host UDP 0, its srflx 1,
+          // host TCP 2; component 2 priorities are component 1 minus one.
+          // nICEr reports component by component (UDP, then TCP).
+          for (size_t c = 0; c < t.mComponents; ++c) {
+            self->CandidateReady("candidate:0 " + std::to_string(c + 1) +
+                                     " UDP " + std::to_string(2122187007u - c) +
+                                     " " + hostName + " " +
+                                     std::to_string(t.mPorts[c]) + " typ host",
+                                 t.mId, t.mUfrag);
+            self->CandidateReady("candidate:2 " + std::to_string(c + 1) +
+                                     " TCP " + std::to_string(2105458943u - c) +
+                                     " " + hostName +
+                                     " 9 typ host tcptype active",
+                                 t.mId, t.mUfrag);
+          }
+        }
+      }));
+
+  // A STUN binding round trip later: server-reflexive candidates. The exit
+  // IP is read now, so an echo lookup that finishes meanwhile still counts.
+  const uint32_t delayMs = 25 + static_cast<uint32_t>(RandomUint64OrDie() % 60);
+  NS_DelayedDispatchToCurrentThread(
+      NS_NewRunnableFunction(
+          "PeerConnectionImpl::SGSrflxCandidates",
+          [self, transports, silent]() {
+            std::string ip;
+            if (!silent) {
+              const auto pref = StaticPrefs::sg_fp_webrtc_public_ip();
+              ip = pref->get();
+            }
+            if (ip.find_first_not_of("0123456789.:abcdefABCDEF") !=
+                std::string::npos) {
+              ip.clear();
+            }
+            const bool v6 = ip.find(':') != std::string::npos;
+            for (const auto& t : transports) {
+              if (self->IsClosed()) {
+                return;
+              }
+              if (!ip.empty()) {
+                const bool rtcp = t.mComponents == 2;
+                self->UpdateDefaultCandidate(ip, t.mPorts[0],
+                                             rtcp ? ip : std::string(),
+                                             rtcp ? t.mPorts[1] : 0, t.mId);
+                for (size_t c = 0; c < t.mComponents; ++c) {
+                  self->CandidateReady(
+                      "candidate:1 " + std::to_string(c + 1) + " UDP " +
+                          std::to_string(1685987327u - c) + " " + ip + " " +
+                          std::to_string(t.mPorts[c]) + " typ srflx raddr " +
+                          (v6 ? "::" : "0.0.0.0") + " rport 0",
+                      t.mId, t.mUfrag);
+                }
+              }
+              // Exit IP unknown: like a STUN server that never answered.
+              // End of candidates for this transport (a=end-of-candidates and
+              // the "" candidate event), as nICEr signals it.
+              self->CandidateReady("", t.mId, t.mUfrag);
+              if (self->IsClosed()) {
+                return;
+              }
+              self->IceGatheringStateChange(t.mId,
+                                            dom::RTCIceGathererState::Complete);
+            }
+          }),
+      delayMs);
+}
+
 void PeerConnectionImpl::IceGatheringStateChange(
     const std::string& aTransportId, dom::RTCIceGathererState state) {
   MOZ_ASSERT(NS_IsMainThread(), "Wrong thread");
@@ -4821,6 +4981,12 @@ void PeerConnectionImpl::EnsureIceGathering(bool aDefaultRouteOnly,
   if (!mStunAddrs.Length() && XRE_IsContentProcess()) {
     CSFLogInfo(LOGTAG, "%s: No STUN addresses returned from parent process",
                __FUNCTION__);
+    return;
+  }
+
+  if (SGSynthActive()) {
+    // InviFox: never open ICE sockets; play NAT-style gathering instead.
+    SGStartSynthesizedGathering(aObfuscateHostAddresses);
     return;
   }
 

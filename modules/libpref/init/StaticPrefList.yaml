@@ -20005,6 +20005,13 @@
   value: ""
   mirror: always
 
+# InviFox: forward/replace behind a proxy - ICE is proxy-only and
+# PeerConnectionImpl synthesizes NAT-style candidates with the exit IP.
+- name: sg.fp.webrtc.synth
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: sg.fp.geo.mode
   type: DataMutexString
   value: ""

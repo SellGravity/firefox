@@ -7,7 +7,61 @@
 // mobile persona --device-size). Values arrive as locked sg.* prefs written by
 // toolkit/components/resistfingerprinting/SGLaunchConfig.cpp.
 
+import {
+  clearTimeout,
+  setTimeout,
+} from "resource://gre/modules/Timer.sys.mjs";
+
 let gApplied = false;
+
+// --webrtc-mode=forward|replace behind a proxy: WebRTC must report the proxy
+// EXIT address as the public IP (see PeerConnectionImpl::
+// SGStartSynthesizedGathering). The launcher may not know it (gateway
+// hostnames, rotating pools), so ask an IP echo service through the profile
+// proxy - the same route every page request takes. The proxy resolves names
+// itself, so a dual-stack proxy reaches dual-stack sites (BrowserScan,
+// Pixelscan...) over IPv6: ask dual-stack services first so the WebRTC
+// address has the family those sites see ("IP addresses are different"
+// otherwise), IPv4-only ones as a fallback.
+const kIpEchoUrls = [
+  "https://api64.ipify.org/",
+  "https://icanhazip.com/",
+  "https://api.ipify.org/",
+  "https://checkip.amazonaws.com/",
+];
+const kIpv4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+const kIpv6 = /^[0-9a-f]{0,4}(:[0-9a-f]{0,4}){2,7}$/i;
+
+function setLockedString(name, value) {
+  Services.prefs.unlockPref(name);
+  Services.prefs.getDefaultBranch("").setStringPref(name, value);
+  Services.prefs.lockPref(name);
+}
+
+async function discoverExitIp(attempt = 0) {
+  for (const url of kIpEchoUrls) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10000);
+      const res = await fetch(url, {
+        cache: "no-store",
+        credentials: "omit",
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      const ip = (await res.text()).trim();
+      if (res.ok && (kIpv4.test(ip) || kIpv6.test(ip))) {
+        setLockedString("sg.fp.webrtc.public_ip", ip);
+        return;
+      }
+    } catch (e) {
+      // try the next service
+    }
+  }
+  if (attempt < 3) {
+    setTimeout(() => discoverExitIp(attempt + 1), 15000 * (attempt + 1));
+  }
+}
 
 function intPref(name) {
   return Services.prefs.getIntPref(name, 0);
@@ -22,6 +76,10 @@ export const SGWindow = {
       return;
     }
     gApplied = true;
+
+    if (Services.prefs.getBoolPref("sg.fp.webrtc.discover_ip", false)) {
+      discoverExitIp();
+    }
 
     const mobile = Services.prefs.getBoolPref("sg.fp.mobile", false);
     if (mobile) {

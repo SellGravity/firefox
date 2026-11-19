@@ -113,6 +113,7 @@ struct CollectedArg {
 StaticAutoPtr<nsTArray<CollectedArg>> sArgs;
 StaticAutoPtr<nsCString> sProxyUser;
 StaticAutoPtr<nsCString> sProxyPass;
+StaticAutoPtr<nsCString> sProxyHost;  // host of a successfully applied proxy
 
 const nsCString* FindArg(const char* aName) {
   if (!sArgs) {
@@ -399,6 +400,7 @@ void ApplyProxy(const nsACString& aProxy) {
     return;
   }
 
+  *sProxyHost = host;
   LockInt("network.proxy.type", 1);  // manual
   LockCString("network.proxy.no_proxies_on", ""_ns);
   // Never fall back to a direct connection: that would leak the real IP.
@@ -422,23 +424,78 @@ void ApplyProxy(const nsACString& aProxy) {
     LockBool("network.proxy.share_proxy_settings", true);
     LockCString("network.proxy.socks", ""_ns);
   }
-  // TODO(P5): SOCKS5 user/pass and HTTP 407 auto-answer from
-  // GetProxyCredentials() (nsHttpChannelAuthProvider / nsSOCKSIOLayer).
+  // Credentials (inline or --proxy-auth-user/pass) are answered from
+  // GetProxyCredentials(): HTTP 407 in nsHttpChannelAuthProvider, SOCKS5
+  // user/pass in nsProtocolProxyService. No auth dialog ever shows.
+}
+
+// A public IPv4 literal (page traffic is IPv4-only, network.dns.disableIPv6).
+// Loopback / LAN / link-local proxy hosts (a local forwarder) say nothing
+// about the exit address.
+bool IsPublicIpv4Literal(const nsACString& aHost) {
+  uint32_t parts[4] = {0, 0, 0, 0};
+  int n = 0;
+  bool digit = false;
+  for (char c : Span(aHost.BeginReading(), aHost.Length())) {
+    if (c >= '0' && c <= '9') {
+      parts[n] = parts[n] * 10 + uint32_t(c - '0');
+      if (parts[n] > 255) return false;
+      digit = true;
+    } else if (c == '.' && digit && n < 3) {
+      ++n;
+      digit = false;
+    } else {
+      return false;
+    }
+  }
+  if (n != 3 || !digit) return false;
+  const uint32_t a = parts[0], b = parts[1];
+  return !(a == 0 || a == 10 || a == 127 || a >= 224 ||
+           (a == 100 && b >= 64 && b <= 127) || (a == 169 && b == 254) ||
+           (a == 172 && b >= 16 && b <= 31) || (a == 192 && b == 168));
 }
 
 void ApplyWebRtc(const nsACString& aMode) {
   // InviBrowser: disable | forward | replace ("real" sends no switch).
+  const bool proxied = sProxyHost && !sProxyHost->IsEmpty();
+  if (proxied && (aMode.EqualsLiteral("forward") ||
+                  aMode.EqualsLiteral("replace"))) {
+    // Like the Chromium fork: the page must see the proxy exit IP as the
+    // public address and never the real one. UDP cannot go through an
+    // HTTP/SOCKS proxy here, so no ICE socket may reach a STUN server at all
+    // (a page-supplied STUN server sees the real source IP whatever the
+    // candidate text says). PeerConnectionImpl::SGStartSynthesizedGathering
+    // then plays NAT-style gathering with the exit IP.
+    LockBool("media.peerconnection.ice.proxy_only", true);
+    LockBool("sg.fp.webrtc.synth", true);
+    if (!HasArg("webrtc-proxy-ip")) {
+      // Exit IP: a public literal proxy host for a start; SGWindow then asks
+      // an IP echo service through the proxy (exact for gateways/rotating
+      // pools and for proxies whose exit differs from the entry address).
+      if (IsPublicIpv4Literal(*sProxyHost)) {
+        LockCString("sg.fp.webrtc.public_ip", *sProxyHost);
+      }
+      LockBool("sg.fp.webrtc.discover_ip", true);
+    }
+    LockCString("sg.fp.webrtc.mode", aMode);
+    return;
+  }
   if (aMode.EqualsLiteral("disable") || aMode.EqualsLiteral("disabled")) {
     LockBool("media.peerconnection.ice.no_host", true);
     LockBool("media.peerconnection.ice.default_address_only", true);
     LockBool("media.peerconnection.ice.proxy_only", true);
+    // Proxy-only ICE alone would leave gathering stuck in "new" with no
+    // end-of-candidates; play an empty gathering instead (see
+    // PeerConnectionImpl::SGStartSynthesizedGathering).
+    LockBool("sg.fp.webrtc.synth", true);
   } else if (aMode.EqualsLiteral("forward")) {
     LockBool("media.peerconnection.ice.no_host", true);
     LockBool("media.peerconnection.ice.proxy_only_if_behind_proxy", true);
   } else if (aMode.EqualsLiteral("replace")) {
     LockBool("media.peerconnection.ice.no_host", true);
     LockBool("media.peerconnection.ice.default_address_only", true);
-    // TODO(P5): rewrite srflx candidates with sg.fp.webrtc.public_ip.
+    // Without a proxy there is nothing to replace with unless
+    // --webrtc-proxy-ip is given (PeerConnection.sys.mjs rewrites then).
   }
   LockCString("sg.fp.webrtc.mode", aMode);
 }
@@ -645,6 +702,7 @@ void CollectLaunchArgs(int& aArgc, char** aArgv) {
   sArgs = new nsTArray<CollectedArg>();
   sProxyUser = new nsCString();
   sProxyPass = new nsCString();
+  sProxyHost = new nsCString();
 
   for (const SwitchDef& def : kSwitches) {
     for (;;) {
