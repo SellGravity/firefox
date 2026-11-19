@@ -459,6 +459,27 @@ export class AddonInternal {
         // Temporary and built-in add-ons do not require signing.
         return true;
 
+      case KEY_APP_PROFILE:
+        // SellGravity (InviFox): extensions the InviBrowser launcher assigns
+        // to a profile. The launcher links each one into <profile>/extensions
+        // with a pointer file named "<hash>@invi.ext" that points to an
+        // unpacked copy, like Chromium's --load-extension. Only that form is
+        // exempt: an install from a web page or a file is always a packed XPI,
+        // and the exemption is on only for launcher-driven profiles.
+        if (
+          this.id.endsWith("@invi.ext") &&
+          Services.prefs.getBoolPref("sg.ext.launcher_managed", false)
+        ) {
+          try {
+            if (this._sourceBundle?.isDirectory()) {
+              return true;
+            }
+          } catch (e) {
+            // Missing directory: fall through to the normal check.
+          }
+        }
+        break;
+
       case KEY_APP_SYSTEM_SHARE:
       case KEY_APP_SYSTEM_LOCAL:
         // On UNIX platforms except OSX, an additional location for system

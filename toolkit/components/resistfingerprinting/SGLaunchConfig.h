@@ -38,6 +38,11 @@ namespace mozilla::sgfp {
 
 void CollectLaunchArgs(int& aArgc, char** aArgv);
 
+// Before profile-after-change (XRE_mainRun, just before DoStartup): locked
+// default-branch prefs that components starting on profile-after-change read
+// at once - the add-on manager for launcher extensions.
+void ApplyEarlyLaunchConfig();
+
 void ApplyLaunchConfig(nsIFile* aProfileDir);
 
 // True when the launcher passed at least one fingerprint switch.

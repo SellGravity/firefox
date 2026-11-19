@@ -752,6 +752,24 @@ void ApplyMac() {
   }
 }
 
+void ApplyExtensions() {
+  // Extensions the launcher assigns to the profile arrive as pointer files
+  // "<hash>@invi.ext" in <profile>/extensions (unpacked, unsigned; see
+  // AddonInternal.isCorrectlySigned). Enable them without the "new add-on
+  // was installed" prompt Firefox shows for sideloads.
+  LockBool("sg.ext.launcher_managed", true);
+  LockInt("extensions.autoDisableScopes", 0);
+  LockInt("extensions.enabledScopes", 15);
+  // Re-scan the profile folder on startup so assignments made while the
+  // browser was closed take effect, and drop removed ones.
+  LockInt("extensions.startupScanScopes", 1);
+  // MV3 host permissions granted at install, like Chrome.
+  LockBool("extensions.originControls.grantByDefault", true);
+  // No AMO recommendations / install nags in a launcher profile.
+  LockBool("extensions.getAddons.showPane", false);
+  LockBool("extensions.htmlaboutaddons.recommendations.enabled", false);
+}
+
 void ApplyHardening() {
   // Things a launcher-driven profile must never do on its own.
   LockBool("browser.shell.checkDefaultBrowser", false);
@@ -859,6 +877,12 @@ bool GetProxyCredentials(nsACString& aUser, nsACString& aPass) {
     aPass.Truncate();
   }
   return true;
+}
+
+void ApplyEarlyLaunchConfig() {
+  if (IsLaunchConfigPresent()) {
+    ApplyExtensions();
+  }
 }
 
 void ApplyLaunchConfig(nsIFile* aProfileDir) {

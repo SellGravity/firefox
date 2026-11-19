@@ -6317,6 +6317,10 @@ nsresult XREMain::XRE_mainRun() {
     appStartup = components::AppStartup::Service();
     NS_ENSURE_TRUE(appStartup, NS_ERROR_FAILURE);
 
+    // SellGravity antidetect: prefs the add-on manager reads while it starts
+    // on profile-after-change (inside DoStartup), e.g. launcher extensions.
+    mozilla::sgfp::ApplyEarlyLaunchConfig();
+
     mDirProvider.DoStartup();
 
     // SellGravity antidetect: profile prefs are loaded, apply launch config
