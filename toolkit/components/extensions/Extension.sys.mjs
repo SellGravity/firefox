@@ -4339,7 +4339,16 @@ export class Extension extends ExtensionData {
         });
         this.permissions.delete(PRIVATE_ALLOWED_PERMISSION);
       }
-    } else if (!isAllowed && this.isPrivileged && !this.temporarilyInstalled) {
+    } else if (
+      !isAllowed &&
+      ((this.isPrivileged && !this.temporarilyInstalled) ||
+        // SellGravity (InviFox): extensions the InviBrowser launcher assigns
+        // to a profile ("<hash>@invi.ext", see AddonInternal
+        // .isCorrectlySigned) also run in private windows, so the URL guard
+        // that enforces a profile's URL restrictions cannot be bypassed there.
+        (this.id?.endsWith("@invi.ext") &&
+          Services.prefs.getBoolPref("sg.ext.launcher_managed", false)))
+    ) {
       // Add to EP so it is preserved after ADDON_INSTALL.
       lazy.ExtensionPermissions.add(this.id, {
         permissions: [PRIVATE_ALLOWED_PERMISSION],
