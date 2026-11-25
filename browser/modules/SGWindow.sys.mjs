@@ -29,6 +29,8 @@ const kIpEchoUrls = [
   "https://api.ipify.org/",
   "https://checkip.amazonaws.com/",
 ];
+// Same floor as popup windows (browser-shared.css :root min-width).
+const kSGWindowMinWidth = "95px";
 const kIpv4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 const kIpv6 = /^[0-9a-f]{0,4}(:[0-9a-f]{0,4}){2,7}$/i;
 
@@ -80,6 +82,17 @@ export const SGWindow = {
     if (Services.prefs.getBoolPref("sg.fp.webrtc.discover_ip", false)) {
       discoverExitIp();
     }
+
+    // The launcher tiles many profile windows side by side (window arrange),
+    // often narrower than Firefox's 500px window minimum (browser-shared.css
+    // --window-min-width). Windows would then come out wider than their tile
+    // and cover the neighbours, so let launcher windows shrink like Chromium
+    // ones; the toolbar overflows instead. Also applies to later arranges of
+    // the running window (WebDriver BiDi setClientWindowState).
+    win.document.documentElement.style.setProperty(
+      "--window-min-width",
+      kSGWindowMinWidth
+    );
 
     const mobile = Services.prefs.getBoolPref("sg.fp.mobile", false);
     if (mobile) {
@@ -145,7 +158,20 @@ export const SGWindow = {
         h = Math.min(h, Math.max(1, sh - 48));
       }
       if (w > 0 && h > 0) {
+        // The lowered minimum width only reaches the native window after a
+        // layout pass; until then a narrow tile is clamped to 500px. Flush
+        // layout first, and size again shortly after startup if it did not
+        // stick yet.
+        win.document.documentElement.getBoundingClientRect();
+        const size = () => {
+          if (win.outerWidth !== w || win.outerHeight !== h) {
+            win.resizeTo(w, h);
+          }
+        };
         win.resizeTo(w, h);
+        win.setTimeout(size, 0);
+        win.setTimeout(size, 300);
+        win.setTimeout(size, 1500);
       }
     }
 
